@@ -10,6 +10,8 @@ RUN apt-get update && apt-get install -y \
   build-essential \
   cmake \
   ninja-build \
+  libgl1-mesa-glx \
+  libglib2.0-0 \
   && rm -rf /var/lib/apt/lists/*
 
 # Copy only essential files for cloning submodules first (e.g., .gitmodules)
