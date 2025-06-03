@@ -48,5 +48,5 @@ RUN /bin/bash -c "source activate edgs && \
 # Expose the port for Gradio
 EXPOSE 7862
 
-# Command to run the Gradio demo
-CMD ["bash"]
+# Keep the container running in detached mode
+CMD ["tail", "-f", "/dev/null"]

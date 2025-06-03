@@ -72,7 +72,7 @@ Alternatively, check our [Colab notebook](https://colab.research.google.com/gith
 You can install it just:
 
 ```bash
-docker compose up
+docker compose up -d
 ```
 
 or you can install with running `install.sh`.
@@ -87,6 +87,22 @@ We evaluated on the following datasets:
 
 ### Using Your Own Dataset
 
+#### Option A
+Use gradle demo;
+```
+docker compose exec edgs-app bash
+python gradio_demo.py --port 7862
+```
+
+#### Option B
+From command line;
+```
+docker compose exec edgs-app bash
+cd notebooks
+python fit_model_to_scene_full.py --video_path <your mp4 video>
+```
+
+#### Option C
 You can use the same data format as the [3DGS project](https://github.com/graphdeco-inria/gaussian-splatting?tab=readme-ov-file#processing-your-own-scenes). Please follow their guide to prepare your scene.
 
 Expected folder structure:
