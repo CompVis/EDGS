@@ -49,4 +49,4 @@ RUN /bin/bash -c "source activate edgs && \
 EXPOSE 7862
 
 # Command to run the Gradio demo
-CMD ["bash", "-c", "source activate edgs && python gradio_demo.py --port 7862"]
+CMD ["bash"]
