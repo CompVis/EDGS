@@ -23,5 +23,4 @@ venv/
 *.json
 *.yaml
 *.yml
-assets/
 submodules/
