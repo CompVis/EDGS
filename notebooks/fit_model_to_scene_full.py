@@ -24,9 +24,11 @@ from omegaconf import OmegaConf
 
 sys.path.append("../")
 sys.path.append("../submodules/gaussian-splatting")
-from gradio_demo import preprocess_input
 from source.trainer import EDGSTrainer
 from source.utils_aux import set_seed
+from source.utils_preprocess import (
+    orchestrate_video_to_colmap_scene,  # Use the refactored function
+)
 
 # --- Add argument parsing ---
 parser = argparse.ArgumentParser(
@@ -53,31 +55,24 @@ PATH_TO_VIDEO = args.video_path
 num_ref_views = 16  # how many frames you want to extract from video and colmap
 
 # process the input video
-if True:
-    print("Starting video preprocessing...")
-    # Ensure num_corrs is defined. Using cfg.init_wC.matches_per_ref as likely intended.
-    num_corrs = cfg.init_wC.matches_per_ref
+if PATH_TO_VIDEO and os.path.exists(PATH_TO_VIDEO):
+    print(f"Starting video processing for: {PATH_TO_VIDEO}")
     try:
-        images, scene_dir = preprocess_input(PATH_TO_VIDEO, num_ref_views, num_corrs)
-        print(f"Video preprocessed. Scene directory: {scene_dir}")
-        cfg.gs.dataset.source_path = scene_dir
-        # Define a model_path, e.g., in a subdirectory of the scene_dir or a dedicated output folder
-        cfg.gs.dataset.model_path = os.path.join(
-            os.path.dirname(scene_dir), os.path.basename(scene_dir) + "_edgs_model"
+        # The first return value 'images_data' might not be directly used by the trainer
+        # if the Scene object loads everything from the COLMAP directory.
+        _, scene_dir = orchestrate_video_to_colmap_scene(
+            PATH_TO_VIDEO,
+            args.num_ref_views,  # Assuming you added this arg
+            max_size=1024,  # Or make it an arg
+            base_work_dir=args.processed_scenes_dir,  # Assuming you added this arg
         )
-        print(f"Set dataset.source_path to: {cfg.gs.dataset.source_path}")
-        print(f"Set dataset.model_path to: {cfg.gs.dataset.model_path}")
+        if scene_dir is None:
+            print(f"Failed to process video {PATH_TO_VIDEO}. Exiting.")
+            sys.exit(1)
     except Exception as e:
         print(f"Error during video preprocessing: {e}")
         sys.exit(1)
-else:
-    # This block will be used if video preprocessing is skipped.
-    # Ensure these paths are valid if this branch is taken.
-    print("Skipping video preprocessing. Using pre-configured paths.")
-    cfg.gs.dataset.model_path = "./scene_edgsed/"
-    cfg.gs.dataset.source_path = (
-        "../assets/scene_colmaped/"  # Ensure this is a valid COLMAP scene
-    )
+
 
 # Update the config with your settings
 cfg.gs.dataset.images = "images"
