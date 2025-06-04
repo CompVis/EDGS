@@ -14,3 +14,5 @@ services:
     volumes:
       - ./data:/EDGS/data # Example: map a local 'data' folder to '/EDGS/data' in the container
       - ./output:/EDGS/output # Example: map a local 'output' folder
+      - ./scripts:/EDGS/scripts # Example: map a local 'scripts' folder
+      - ./sources:/EDGS/sources # Example: map a local 'sources' folder

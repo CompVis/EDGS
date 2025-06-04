@@ -12,8 +12,6 @@ from moviepy import VideoFileClip
 from PIL import Image
 from tqdm import tqdm
 
-WORKDIR = "../outputs/"
-
 
 def get_rotation_moviepy(video_path):
     clip = VideoFileClip(video_path)
@@ -417,15 +415,21 @@ def orchestrate_video_to_colmap_scene(
     input_path,
     num_ref_views,
     max_size=1024,
-    base_work_dir="../outputs/processed_scenes_util",
+    base_work_dir="../output/processed_scenes",
 ):
     """
     Orchestrates the full video/image folder preprocessing pipeline:
     1. Creates a temporary scene directory.
     2. Reads frames, selects optimal ones, saves them.
     3. Runs COLMAP on the scene.
-    Returns the list of selected frame image data and the path to the COLMAP processed scene directory.
-    This is based on preprocess_input from gradio_demo.py.
+    Args:
+        input_path (str or file-like): Path to video file or directory of images.
+        num_ref_views (int): Number of reference views to select.
+        max_size (int): Maximum size for width or height after resizing.
+        base_work_dir (str): Base directory for temporary scene directories.
+    Returns:
+        the list of selected frame image data and the path to the COLMAP processed scene directory.
+        This is based on preprocess_input from gradio_demo.py.
     """
     # Create a unique scene directory
     # If input_path is a file object, use its name. If a path string, use its basename.

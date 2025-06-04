@@ -418,65 +418,51 @@ with gr.Blocks() as demo:
 
     log_output_box = gr.Textbox(label="🖥️ Log", lines=10, interactive=False)
 
-    def on_preprocess_click(
-        input_file_obj, num_ref_views_val
-    ):  # input_file_obj is from gr.File
-        # 'input_file_obj' from gr.File is a tempfile._TemporaryFileWrapper object
-        # It has a .name attribute which is the path to the temporary file
+    def on_preprocess_click(input_file_obj, num_ref_views_val):
+        """
+        Handles the preprocess button click.
+        Calls the main preprocessing orchestrator and updates the UI.
+        """
         if input_file_obj is None:
+            # Handles case where no file is uploaded if input_file component is not required
+            # or if the user clears the selection.
+            # For gr.Examples, input_file_obj will be a list containing a list of paths.
+            # For direct upload with file_count="multiple", it's a list of file objects.
+            # For direct upload with file_count="single", it's a single file object.
+            # orchestrate_video_to_colmap_scene should be robust to these.
             gr.Warning("Please upload a file or select an example.")
             return None, None, gr.update(interactive=False)
 
-        # Handle single file vs. list of files (if file_count="multiple")
-        actual_input_path = None
-        if isinstance(
-            input_file_obj, list
-        ):  # If file_count="multiple" and multiple files are uploaded
-            if not input_file_obj:
-                gr.Warning("No file provided in the list.")
-                return None, None, gr.update(interactive=False)
-            actual_input_path = input_file_obj[
-                0
-            ].name  # Process the first file for simplicity, or adapt
-            # If you expect a folder of images, you might need to handle this differently,
-            # as Gradio's gr.File with file_count="multiple" gives a list of temp file objects.
-            # The original process_input had logic for os.path.isdir(input_path).
-            # If users are meant to upload a folder, gr.File might not be the best component,
-            # or you'd need to zip/unzip. For now, assuming single video or first of multiple.
-        elif hasattr(input_file_obj, "name"):  # Single file object
-            actual_input_path = input_file_obj.name
-        else:
-            gr.Warning("Invalid input file.")
-            return None, None, gr.update(interactive=False)
-
-        # Use the refactored preprocessing function
-        # The first return value 'images_data' is a list of numpy arrays (the frame pixel data)
-        images_data, scene_dir_val = orchestrate_video_to_colmap_scene(
-            actual_input_path,  # Pass the path of the uploaded temp file
-            num_ref_views_val,
-            max_size=1024,  # Or get from a Gradio component
-            base_work_dir="./gradio_processed_scenes",  # Store Gradio outputs in a specific place
+        selected_bgr_frames, scene_dir = orchestrate_video_to_colmap_scene(
+            gradio_input_obj=input_file_obj,  # Pass the raw Gradio file object(s)
+            num_ref_views=num_ref_views_val,
+            max_size=1024,
+            base_work_dir="./gradio_processed_scenes",  # Or configure as needed
         )
-        if not scene_dir_val:
-            gr.Error("Preprocessing failed. Check logs.")
-            return None, None, gr.update(interactive=False)
 
-        # Convert numpy arrays (BGR from OpenCV) to RGB for Gradio gallery
-        gallery_images = []
-        if images_data:
-            for img_data_np in images_data:
-                if isinstance(img_data_np, np.ndarray):
-                    # Assuming frames from read_video_frames are BGR, convert to RGB for PIL/Gradio
-                    gallery_images.append(
-                        Image.fromarray(cv2.cvtColor(img_data_np, cv2.COLOR_BGR2RGB))
-                    )
-                else:  # If images_data contains PIL Images already
-                    gallery_images.append(img_data_np)
+        if not scene_dir:  # Indicates preprocessing failed
+            gr.Error("Preprocessing failed. Please check the logs or input file.")
+            return (
+                None,
+                None,
+                gr.update(interactive=False),
+            )  # Keep gallery empty, scene_dir None, button disabled
+
+        # Convert BGR numpy arrays to RGB for Gradio gallery.
+        # gr.Gallery can display a list of NumPy arrays (H, W, C) or PIL Images.
+        # Assuming selected_bgr_frames contains BGR NumPy arrays.
+        gallery_display_images = []
+        if selected_bgr_frames:
+            gallery_display_images = [
+                frame[..., ::-1]
+                for frame in selected_bgr_frames
+                if isinstance(frame, np.ndarray)
+            ]
 
         return (
-            gr.update(value=gallery_images),
-            scene_dir_val,
-            gr.update(interactive=True),
+            gr.update(value=gallery_display_images),
+            scene_dir,  # Update the scene_dir_state
+            gr.update(interactive=True),  # Enable the 'Start Reconstruction' button
         )
 
     def on_start_click(scene_dir, num_ref_views, num_corrs, num_steps):

@@ -40,6 +40,18 @@ parser.add_argument(
     default="../assets/examples/video_fruits.mp4",
     help="Path to the input video file.",
 )
+parser.add_argument(  # Add this argument
+    "--num_ref_views",
+    type=int,
+    default=16,  # Or any other sensible default
+    help="Number of reference views to extract from video for COLMAP.",
+)
+parser.add_argument(  # Add this argument based on your previous script structure
+    "--processed_scenes_dir",
+    type=str,
+    default="../output/processed_scenes",  # Or any other sensible default
+    help="Base directory where processed COLMAP scenes will be stored.",
+)
 args = parser.parse_args()
 # --- End argument parsing ---
 
@@ -51,28 +63,24 @@ print(OmegaConf.to_yaml(cfg))
 # # 3. Init input parameters
 
 # ## 3.1 Optionally preprocess video
-PATH_TO_VIDEO = args.video_path
-num_ref_views = 16  # how many frames you want to extract from video and colmap
-
 # process the input video
-if PATH_TO_VIDEO and os.path.exists(PATH_TO_VIDEO):
-    print(f"Starting video processing for: {PATH_TO_VIDEO}")
+if os.path.exists(args.video_path):
+    print(f"Starting video processing for: {args.video_path}")
     try:
         # The first return value 'images_data' might not be directly used by the trainer
         # if the Scene object loads everything from the COLMAP directory.
         _, scene_dir = orchestrate_video_to_colmap_scene(
-            PATH_TO_VIDEO,
+            args.video_path,
             args.num_ref_views,  # Assuming you added this arg
             max_size=1024,  # Or make it an arg
             base_work_dir=args.processed_scenes_dir,  # Assuming you added this arg
         )
         if scene_dir is None:
-            print(f"Failed to process video {PATH_TO_VIDEO}. Exiting.")
+            print(f"Failed to process video {args.video_path}. Exiting.")
             sys.exit(1)
     except Exception as e:
         print(f"Error during video preprocessing: {e}")
         sys.exit(1)
-
 
 # Update the config with your settings
 cfg.gs.dataset.images = "images"
