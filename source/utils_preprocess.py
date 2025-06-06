@@ -423,7 +423,7 @@ def orchestrate_video_to_colmap_scene(
     2. Reads frames, selects optimal ones, saves them.
     3. Runs COLMAP on the scene.
     Args:
-        input_path (str or file-like): Path to video file or directory of images.
+        input_path (str or file-like): Path string, a Gradio file object, or a list (e.g., from gr.Examples).
         num_ref_views (int): Number of reference views to select.
         max_size (int): Maximum size for width or height after resizing.
         base_work_dir (str): Base directory for temporary scene directories.
@@ -444,13 +444,23 @@ def orchestrate_video_to_colmap_scene(
         input_name_part = os.path.splitext(os.path.basename(input_path))[0]
     elif (
         isinstance(input_path, list) and input_path
-    ):  # List of Gradio file objects or paths (from gr.Examples)
-        # Handle list, e.g., take the first item
-        first_item = input_path[0]
-        if hasattr(first_item, "name") and isinstance(first_item.name, str):
+    ):  # Handle list: take the first item.
+        # gr.Examples often wraps the path in another list, e.g., [['path/to/example.mp4']]
+        # So, we might need to unwrap it.
+        first_item_candidate = input_path[0]
+        if (
+            isinstance(first_item_candidate, list) and first_item_candidate
+        ):  # Check for nested list
+            first_item = first_item_candidate[0]
+        else:
+            first_item = first_item_candidate
+
+        if hasattr(first_item, "name") and isinstance(
+            first_item.name, str
+        ):  # Gradio file object in list
             actual_input_path_str = first_item.name
             input_name_part = os.path.splitext(os.path.basename(first_item.name))[0]
-        elif isinstance(first_item, (str, os.PathLike)):
+        elif isinstance(first_item, (str, os.PathLike)):  # Path string in list
             actual_input_path_str = str(first_item)
             input_name_part = os.path.splitext(os.path.basename(first_item))[0]
         else:
@@ -479,7 +489,7 @@ def orchestrate_video_to_colmap_scene(
     print(f"Created scene directory for COLMAP: {scene_dir}")
 
     selected_frames_data = process_input_for_colmap(
-        input_path, num_ref_views, scene_dir, max_size
+        actual_input_path_str, num_ref_views, scene_dir, max_size
     )
     if not selected_frames_data:
         print(f"Frame processing failed for {input_path}. Aborting COLMAP.")
