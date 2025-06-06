@@ -434,7 +434,7 @@ with gr.Blocks() as demo:
             return None, None, gr.update(interactive=False)
 
         selected_bgr_frames, scene_dir = orchestrate_video_to_colmap_scene(
-            gradio_input_obj=input_file_obj,  # Pass the raw Gradio file object(s)
+            input_path=input_file_obj,  # Pass the raw Gradio file object(s)
             num_ref_views=num_ref_views_val,
             max_size=1024,
             base_work_dir="./gradio_processed_scenes",  # Or configure as needed

@@ -431,15 +431,40 @@ def orchestrate_video_to_colmap_scene(
         the list of selected frame image data and the path to the COLMAP processed scene directory.
         This is based on preprocess_input from gradio_demo.py.
     """
-    # Create a unique scene directory
-    # If input_path is a file object, use its name. If a path string, use its basename.
-    input_name_part = ""
-    if hasattr(input_path, "name") and isinstance(input_path.name, str):
+    actual_input_path_str = None
+    input_name_part = "temp_scene"  # Default
+
+    if hasattr(input_path, "name") and isinstance(
+        input_path.name, str
+    ):  # Gradio file object
+        actual_input_path_str = input_path.name
         input_name_part = os.path.splitext(os.path.basename(input_path.name))[0]
-    elif isinstance(input_path, (str, os.PathLike)):
+    elif isinstance(input_path, (str, os.PathLike)):  # Direct path string
+        actual_input_path_str = str(input_path)
         input_name_part = os.path.splitext(os.path.basename(input_path))[0]
-    else:  # Fallback for other types or if name is not available
-        input_name_part = "temp_scene"
+    elif (
+        isinstance(input_path, list) and input_path
+    ):  # List of Gradio file objects or paths (from gr.Examples)
+        # Handle list, e.g., take the first item
+        first_item = input_path[0]
+        if hasattr(first_item, "name") and isinstance(first_item.name, str):
+            actual_input_path_str = first_item.name
+            input_name_part = os.path.splitext(os.path.basename(first_item.name))[0]
+        elif isinstance(first_item, (str, os.PathLike)):
+            actual_input_path_str = str(first_item)
+            input_name_part = os.path.splitext(os.path.basename(first_item))[0]
+        else:
+            print(f"Warning: Unsupported item type in input list: {type(first_item)}")
+            return [], None
+    else:
+        print(f"Error: Unsupported input_path type: {type(input_path)}")
+        return [], None
+
+    if not actual_input_path_str:
+        print("Error: Could not determine a valid input file path.")
+        return [], None
+
+    print(f"Orchestrating COLMAP scene from: {actual_input_path_str}")
 
     # Using a structured output directory instead of pure tempfile.mkdtemp for easier inspection
     # scene_dir_parent = tempfile.mkdtemp() # Original approach
