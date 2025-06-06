@@ -75,7 +75,7 @@ You can install it just:
 docker compose up -d
 ```
 
-or you can install with running `install.sh`.
+or you can install with running `script/install.sh`.
 
 <a id="sec-data"></a>
 ## 📦 Data
@@ -91,7 +91,7 @@ We evaluated on the following datasets:
 Use gradle demo;
 ```
 docker compose exec edgs-app bash
-python gradio_demo.py --port 7862
+python script/gradio_demo.py --port 7862
 ```
 
 #### Option B
