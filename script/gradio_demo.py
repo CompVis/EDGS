@@ -217,15 +217,20 @@ def run_training_pipeline(
         frames=path_renderings, output_path=final_video_path, fps=30, center_crop=0.85
     )
     MODEL_PATH = cfg.gs.dataset.model_path
-    ply_path = os.path.join(
+    original_ply_path = os.path.join(  # Renamed for clarity
         cfg.gs.dataset.model_path,
         f"point_cloud/iteration_{trainer.gs_step}/point_cloud.ply",
     )
-    shutil.copy(
-        ply_path, os.path.join(STATIC_FILE_SERVING_FOLDER, "point_cloud_final.ply")
+    # This is the path to the copied file in an allowed directory
+    copied_ply_path_for_serving = os.path.join(
+        STATIC_FILE_SERVING_FOLDER, "point_cloud_final.ply"
     )
+    shutil.copy(original_ply_path, copied_ply_path_for_serving)
 
-    return final_video_path, ply_path
+    return (
+        final_video_path,
+        copied_ply_path_for_serving,
+    )  # Return the path to the copied .ply file
 
 
 # Gradio Interface
