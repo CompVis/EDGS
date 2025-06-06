@@ -22,8 +22,12 @@ from hydra import compose, initialize
 from matplotlib import pyplot as plt
 from omegaconf import OmegaConf
 
-sys.path.append("../")
-sys.path.append("../submodules/gaussian-splatting")
+# Add the project root directory to sys.path
+# so that modules from 'source' can be imported.
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+# sys.path.append("../submodules/gaussian-splatting")
 from source.trainer import EDGSTrainer
 from source.utils_aux import set_seed
 from source.utils_preprocess import (
@@ -37,19 +41,23 @@ parser = argparse.ArgumentParser(
 parser.add_argument(
     "--video_path",
     type=str,
-    default="../assets/examples/video_fruits.mp4",
+    default=os.path.join(
+        project_root, "assets", "examples", "video_fruits.mp4"
+    ),  # Use project_root
     help="Path to the input video file.",
 )
-parser.add_argument(  # Add this argument
+parser.add_argument(
     "--num_ref_views",
     type=int,
-    default=16,  # Or any other sensible default
+    default=16,
     help="Number of reference views to extract from video for COLMAP.",
 )
-parser.add_argument(  # Add this argument based on your previous script structure
+parser.add_argument(
     "--processed_scenes_dir",
     type=str,
-    default="../outputs/processed_scenes",  # Or any other sensible default
+    default=os.path.join(
+        project_root, "outputs", "processed_scenes"
+    ),  # Use project_root
     help="Base directory where processed COLMAP scenes will be stored.",
 )
 args = parser.parse_args()
