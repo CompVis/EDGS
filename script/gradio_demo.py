@@ -23,6 +23,7 @@ from source.trainer import EDGSTrainer
 from source.utils_aux import set_seed
 from source.utils_preprocess import (
     orchestrate_video_to_colmap_scene,  # Import the new/refactored function
+    process_input_for_colmap,
     run_colmap_on_scene,
 )
 from source.visualization import (
@@ -320,7 +321,9 @@ def run_full_pipeline(input_path, num_ref_views, num_corrs, max_size=1024):
     scene_dir = os.path.join(tmpdirname, "scene")
     os.makedirs(scene_dir, exist_ok=True)
 
-    selected_frames = process_input(input_path, num_ref_views, scene_dir, max_size)
+    selected_frames = process_input_for_colmap(
+        input_path, num_ref_views, scene_dir, max_size
+    )
     run_colmap_on_scene(scene_dir)
 
     return selected_frames, scene_dir
