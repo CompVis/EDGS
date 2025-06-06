@@ -77,11 +77,11 @@ def run_training_pipeline(
     num_steps=1_000,
     mode_toggle="Ours (EDGS)",
 ):
-    with initialize(config_path="./configs", version_base="1.1"):
+    with initialize(config_path="../configs", version_base="1.1"):
         cfg = compose(config_name="train")
 
     scene_name = os.path.basename(scene_dir)
-    model_output_dir = f"./outputs/{scene_name}_trained"
+    model_output_dir = f"../outputs/{scene_name}_trained"
 
     cfg.wandb.mode = "disabled"
     cfg.gs.dataset.model_path = model_output_dir

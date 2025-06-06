@@ -13,6 +13,6 @@ services:
               capabilities: [gpu] # Request GPU capabilities
     volumes:
       - ./data:/EDGS/data # Example: map a local 'data' folder to '/EDGS/data' in the container
-      - ./output:/EDGS/output # Example: map a local 'output' folder
+      - ./outputs:/EDGS/outputs # Example: map a local 'output' folder
       - ./script:/EDGS/script # Example: map a local 'scripts' folder
       - ./source:/EDGS/source # Example: map a local 'sources' folder

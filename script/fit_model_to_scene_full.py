@@ -49,7 +49,7 @@ parser.add_argument(  # Add this argument
 parser.add_argument(  # Add this argument based on your previous script structure
     "--processed_scenes_dir",
     type=str,
-    default="../output/processed_scenes",  # Or any other sensible default
+    default="../outputs/processed_scenes",  # Or any other sensible default
     help="Base directory where processed COLMAP scenes will be stored.",
 )
 args = parser.parse_args()
