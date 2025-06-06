@@ -13,6 +13,12 @@ import numpy as np
 import torch
 from hydra import compose, initialize
 
+# Add the project root directory to sys.path
+# so that modules from 'source' can be imported.
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 from source.trainer import EDGSTrainer
 from source.utils_aux import set_seed
 from source.utils_preprocess import (
