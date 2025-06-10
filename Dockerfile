@@ -43,7 +43,7 @@ RUN /bin/bash -c "source activate edgs && \
   pip install -e ./submodules/gaussian-splatting/submodules/simple-knn && \
   pip install pycolmap wandb hydra-core tqdm torchmetrics lpips matplotlib rich plyfile imageio imageio-ffmpeg && \
   pip install -e ./submodules/RoMa && \
-  pip install gradio plotly scikit-learn moviepy==2.1.1 ffmpeg open3 jupyterlab matplotlib"
+  pip install gradio plotly scikit-learn moviepy==2.1.1 ffmpeg open3d jupyterlab matplotlib"
 
 # Expose the port for Gradio
 EXPOSE 7862

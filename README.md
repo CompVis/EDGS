@@ -95,13 +95,32 @@ python script/gradio_demo.py --port 7862
 ```
 
 #### Option B
-From command line;
+From command line.
+First you need to create wandb account.
+Then, edit configs/trainlyaml; wandb's "entity" for your user name, "project" for your created project name.
+
 ```
 docker compose exec edgs-app bash
 python script/fit_model_to_scene_full.py --video_path <your mp4 video>
 ```
 
 #### Option C
+Using Jupyter lab.
+First edit configs/trainlyaml's wandb part.
+You need to create wandb account and set it to the config file.
+```
+docker compose up edgs-app bash
+```
+And in the terminal in the docker container,
+```
+jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --notebook-dir=notebooks
+```
+After JupyterLab starts, it will print URLs to the terminal. Look for a URL containing a token, like:
+    `http://127.0.0.1:8888/lab?token=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+Open `http://localhost:8888` (or `http://127.0.0.1:8888`) in your host browser.
+When prompted for a "Password or token", paste the `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` part from the URL in step 4 into the field and log in. Alternatively, you can paste the full URL from step 4 directly into your browser.
+
+#### Option D
 You can use the same data format as the [3DGS project](https://github.com/graphdeco-inria/gaussian-splatting?tab=readme-ov-file#processing-your-own-scenes). Please follow their guide to prepare your scene.
 
 Expected folder structure:
