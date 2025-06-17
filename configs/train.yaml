@@ -1,22 +1,22 @@
 defaults:
   - gs: base
-  - _self_ 
+  - _self_
 
 seed: 228
 
 wandb:
   mode: "online" # "disabled" for no logging
-  entity: "3dcorrespondence"
+  entity: "m-ogawa-sensyn"
   project: "Adv3DGS"
   group: null
   name: null
   tag: "debug"
-    
+
 train:
   gs_epochs: 0 # number of 3dgs iterations
-  reduce_opacity: True 
+  reduce_opacity: True
   no_densify: False # if True, the model will not be densified
-  max_lr: True 
+  max_lr: True
 
 load:
   gs: null #path to 3dgs checkpoint
@@ -33,6 +33,4 @@ init_wC:
   scaling_factor: 0.001
   proj_err_tolerance: 0.01
   roma_model: "outdoors" # you can change this to "indoors" or "outdoors"
-  add_SfM_init : False
-
-
+  add_SfM_init: False
