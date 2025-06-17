@@ -5,8 +5,8 @@ defaults:
 seed: 228
 
 wandb:
-  mode: "online" # "disabled" for no logging
-  entity: "m-ogawa-sensyn"
+  mode: "disabled" # "disabled" for no logging
+  entity: "3dcorrespondence"
   project: "Adv3DGS"
   group: null
   name: null
