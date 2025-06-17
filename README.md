@@ -110,7 +110,7 @@ Using Jupyter lab.
 First edit configs/trainlyaml's wandb part.
 You need to create wandb account and set it to the config file.
 ```
-docker compose up edgs-app bash
+docker compose exec edgs-app bash
 ```
 And in the terminal in the docker container,
 ```
