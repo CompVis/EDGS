@@ -103,13 +103,20 @@ cfg.init_wC.roma_model = "outdoors"
 
 
 # # 4. Initilize model and logger
-_ = wandb.init(
-    entity=cfg.wandb.entity,
-    project=cfg.wandb.project,
-    config=omegaconf.OmegaConf.to_container(cfg, resolve=True, throw_on_missing=True),
-    name=cfg.wandb.name,
-    mode=cfg.wandb.mode,
-)
+if cfg.wandb.mode != "disabled":
+    _ = wandb.init(
+        entity=cfg.wandb.entity,
+        project=cfg.wandb.project,
+        config=omegaconf.OmegaConf.to_container(
+            cfg, resolve=True, throw_on_missing=True
+        ),
+        name=cfg.wandb.name,
+        mode=cfg.wandb.mode,
+    )
+else:
+    print(
+        "wandb logging is disabled (mode=disabled). Results will only be saved locally."
+    )
 omegaconf.OmegaConf.resolve(cfg)
 set_seed(cfg.seed)
 # Init output folder
