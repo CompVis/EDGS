@@ -88,7 +88,8 @@ We evaluated on the following datasets:
 ### Using Your Own Dataset
 
 #### Option A
-Use gradle demo;
+Use gradle demo.
+After running `docker compose up -d`,
 ```
 docker compose exec edgs-app bash
 python script/gradio_demo.py --port 7862
