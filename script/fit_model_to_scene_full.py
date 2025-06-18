@@ -142,7 +142,12 @@ print("Output folder: {}".format(cfg.gs.dataset.model_path))
 os.makedirs(cfg.gs.dataset.model_path, exist_ok=True)
 # Init gs model
 gs = hydra.utils.instantiate(cfg.gs)
-trainer = EDGSTrainer(GS=gs, training_config=cfg.gs.opt, device=cfg.device)
+trainer = EDGSTrainer(
+    GS=gs,
+    training_config=cfg.gs.opt,
+    device=cfg.device,
+    log_wandb=(cfg.wandb.mode != "disabled"),
+)
 
 
 # # 5. Init with matchings
