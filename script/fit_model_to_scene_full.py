@@ -9,6 +9,7 @@
 
 # ## 2. Import libraries
 import argparse
+import logging
 import os
 import random
 import sys
@@ -32,6 +33,12 @@ from source.trainer import EDGSTrainer
 from source.utils_aux import set_seed
 from source.utils_preprocess import (
     orchestrate_video_to_colmap_scene,  # Use the refactored function
+)
+
+# Initialize logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
 )
 
 # --- Add argument parsing ---
@@ -104,6 +111,11 @@ cfg.init_wC.roma_model = "outdoors"
 
 # # 4. Initilize model and logger
 if cfg.wandb.mode != "disabled":
+    logging.info(
+        "wandb logging is enabled (mode={}). Results will be logged to wandb.".format(
+            cfg.wandb.mode
+        )
+    )
     _ = wandb.init(
         entity=cfg.wandb.entity,
         project=cfg.wandb.project,
@@ -114,8 +126,10 @@ if cfg.wandb.mode != "disabled":
         mode=cfg.wandb.mode,
     )
 else:
-    print(
-        "wandb logging is disabled (mode=disabled). Results will only be saved locally."
+    logging.info(
+        "wandb logging is disabled (mode={}). Results will not be logged to wandb.".format(
+            cfg.wandb.mode
+        )
     )
 omegaconf.OmegaConf.resolve(cfg)
 set_seed(cfg.seed)

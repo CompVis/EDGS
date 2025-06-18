@@ -17,7 +17,7 @@ services:
       - ./outputs:/EDGS/outputs # Example: map a local 'output' folder
       - ./script:/EDGS/script # Example: map a local 'scripts' folder
       - ./source:/EDGS/source # Example: map a local 'sources' folder
-      - ./config:/EDGS/config # Example: map a local 'config' folder
+      - ./configs:/EDGS/configs # Example: map a local 'config' folder
       - ./notebooks:/EDGS/notebooks # Map a local 'notebooks' folder for JupyterLab
     stdin_open: true # Keep STDIN open for interactive processes
     tty: true        # Allocate a TTY
