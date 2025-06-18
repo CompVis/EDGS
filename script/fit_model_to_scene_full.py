@@ -93,6 +93,7 @@ if os.path.exists(args.video_path):
         if scene_dir is None:
             print(f"Failed to process video {args.video_path}. Exiting.")
             sys.exit(1)
+        cfg.gs.dataset.source_path = scene_dir
         cfg.gs.dataset.model_path = os.path.join(scene_dir, "models")
         print(f"Set model_path to: {cfg.gs.dataset.model_path}")
         os.makedirs(cfg.gs.dataset.model_path, exist_ok=True)
