@@ -12,6 +12,8 @@ services:
             - driver: nvidia
               count: all # Use all available GPUs
               capabilities: [gpu] # Request GPU capabilities
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ./data:/EDGS/data # Example: map a local 'data' folder to '/EDGS/data' in the container
       - ./outputs:/EDGS/outputs # Example: map a local 'output' folder
