@@ -64,6 +64,22 @@ args = parser.parse_args()
 
 with initialize(config_path="../configs", version_base="1.1"):
     cfg = compose(config_name="train")
+
+SAME_WITH_GRADIO_DEMO = True
+if SAME_WITH_GRADIO_DEMO:
+    cfg.gs.opt.opacity_reset_interval = 1_000_000
+    cfg.train.reduce_opacity = True
+    cfg.train.no_densify = True
+    cfg.train.max_lr = True
+    cfg.train.gs_epochs = 1000
+
+    cfg.init_wC.use = True
+    cfg.init_wC.nns_per_ref = 1
+    cfg.init_wC.add_SfM_init = False
+    cfg.init_wC.scaling_factor = 0.00077 * 2.0
+    cfg.init_wC.num_refs = 16
+    cfg.init_wC.matches_per_ref = 20000
+
 print(OmegaConf.to_yaml(cfg))
 
 
