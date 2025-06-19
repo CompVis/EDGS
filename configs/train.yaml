@@ -13,7 +13,7 @@ wandb:
   tag: "debug"
 
 train:
-  gs_epochs: 0 # number of 3dgs iterations
+  gs_epochs: 10 # number of 3dgs iterations
   reduce_opacity: True
   no_densify: False # if True, the model will not be densified
   max_lr: True

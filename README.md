@@ -99,7 +99,7 @@ python script/gradio_demo.py --port 7862
 From command line.
 ```
 docker compose exec edgs-app bash
-python script/fit_model_to_scene_full.py --video_path <your mp4 video>
+python script/fit_model_to_scene_full.py --video_path <your mp4 video> [--processed_scenes_dir <output directory>]
 ```
 
 #### Option C

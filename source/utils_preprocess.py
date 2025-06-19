@@ -415,7 +415,7 @@ def orchestrate_video_to_colmap_scene(
     input_path,
     num_ref_views,
     max_size=1024,
-    base_work_dir="../output/processed_scenes",
+    base_work_dir="../outputs/processed_scenes",
 ):
     """
     Orchestrates the full video/image folder preprocessing pipeline:

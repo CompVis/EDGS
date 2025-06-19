@@ -54,12 +54,6 @@ parser.add_argument(
     help="Path to the input video file.",
 )
 parser.add_argument(
-    "--num_ref_views",
-    type=int,
-    default=16,
-    help="Number of reference views to extract from video for COLMAP.",
-)
-parser.add_argument(
     "--processed_scenes_dir",
     type=str,
     default=os.path.join(
@@ -86,7 +80,7 @@ if os.path.exists(args.video_path):
         # if the Scene object loads everything from the COLMAP directory.
         _, scene_dir = orchestrate_video_to_colmap_scene(
             args.video_path,
-            args.num_ref_views,  # Assuming you added this arg
+            cfg.init_wC.num_refs,  # Assuming you added this arg
             max_size=1024,  # Or make it an arg
             base_work_dir=args.processed_scenes_dir,  # Assuming you added this arg
         )
@@ -100,17 +94,6 @@ if os.path.exists(args.video_path):
     except Exception as e:
         print(f"Error during video preprocessing: {e}")
         sys.exit(1)
-
-# Update the config with your settings
-cfg.gs.dataset.images = "images"
-cfg.gs.opt.TEST_CAM_IDX_TO_LOG = 12
-cfg.train.gs_epochs = 30000
-cfg.gs.opt.opacity_reset_interval = 1_000_000
-cfg.train.no_densify = True
-cfg.init_wC.matches_per_ref = 15_000
-cfg.init_wC.nns_per_ref = 3
-cfg.init_wC.num_refs = 180
-cfg.init_wC.roma_model = "outdoors"
 
 
 # # 4. Initilize model and logger
