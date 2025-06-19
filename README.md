@@ -97,9 +97,6 @@ python script/gradio_demo.py --port 7862
 
 #### Option B
 From command line.
-First you need to create wandb account.
-Then, edit configs/trainlyaml; wandb's "entity" for your user name, "project" for your created project name.
-
 ```
 docker compose exec edgs-app bash
 python script/fit_model_to_scene_full.py --video_path <your mp4 video>
@@ -107,8 +104,6 @@ python script/fit_model_to_scene_full.py --video_path <your mp4 video>
 
 #### Option C
 Using Jupyter lab.
-First edit configs/trainlyaml's wandb part.
-You need to create wandb account and set it to the config file.
 ```
 docker compose exec edgs-app bash
 ```
