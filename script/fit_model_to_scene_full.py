@@ -54,11 +54,9 @@ parser.add_argument(
     help="Path to the input video file.",
 )
 parser.add_argument(
-    "--processed_scenes_dir",
+    "--outputs_dir",
     type=str,
-    default=os.path.join(
-        project_root, "outputs", "processed_scenes"
-    ),  # Use project_root
+    default=os.path.join(project_root, "outputs"),  # Use project_root
     help="Base directory where processed COLMAP scenes will be stored.",
 )
 args = parser.parse_args()
@@ -82,7 +80,7 @@ if os.path.exists(args.video_path):
             args.video_path,
             cfg.init_wC.num_refs,  # Assuming you added this arg
             max_size=1024,  # Or make it an arg
-            base_work_dir=args.processed_scenes_dir,  # Assuming you added this arg
+            base_work_dir=args.outputs_dir,  # Assuming you added this arg
         )
         if scene_dir is None:
             print(f"Failed to process video {args.video_path}. Exiting.")
@@ -143,7 +141,7 @@ trainer.timer.pause()
 with torch.no_grad():
     viewpoint_stack = trainer.GS.scene.getTrainCameras()
     viewpoint_cams_to_viz = random.sample(trainer.GS.scene.getTrainCameras(), 4)
-    for viewpoint_cam in viewpoint_cams_to_viz:
+    for idx, viewpoint_cam in enumerate(viewpoint_cams_to_viz):
         render_pkg = trainer.GS(viewpoint_cam)
         image = render_pkg["render"]
 
@@ -166,13 +164,20 @@ with torch.no_grad():
         ax[1].imshow(image_np)
         ax[1].axis("off")
         plt.tight_layout()
+        plt.savefig(
+            os.path.join(
+                cfg.gs.dataset.model_path,
+                f"viewpoint_{idx}_initial.png",
+            )
+        )
         plt.show()
+        plt.close(fig)
 
 
 # # 6.Optimize scene
 # Optimize first briefly for 5k steps and visualize results. We also disable saving of pretrained models. Train function can be changed for any other method
 trainer.saving_iterations = []
-cfg.train.gs_epochs = 5_000
+# cfg.train.gs_epochs = 5_000
 trainer.train(cfg.train)
 
 
@@ -209,39 +214,39 @@ with torch.no_grad():
     trainer.save_model()
 
 
-# # 7. Continue training until we reach total 30K training steps
-cfg.train.gs_epochs = 25_000
-trainer.train(cfg.train)
+# # # 7. Continue training until we reach total 30K training steps
+# cfg.train.gs_epochs = 25_000
+# trainer.train(cfg.train)
 
 
-# ### Visualize same viewpoints
-with torch.no_grad():
-    for viewpoint_cam in viewpoint_cams_to_viz:
-        render_pkg = trainer.GS(viewpoint_cam)
-        image = render_pkg["render"]
+# # ### Visualize same viewpoints
+# with torch.no_grad():
+#     for viewpoint_cam in viewpoint_cams_to_viz:
+#         render_pkg = trainer.GS(viewpoint_cam)
+#         image = render_pkg["render"]
 
-        image_np = image.clone().detach().cpu().numpy().transpose(1, 2, 0)
-        image_gt_np = (
-            viewpoint_cam.original_image.clone()
-            .detach()
-            .cpu()
-            .numpy()
-            .transpose(1, 2, 0)
-        )
+#         image_np = image.clone().detach().cpu().numpy().transpose(1, 2, 0)
+#         image_gt_np = (
+#             viewpoint_cam.original_image.clone()
+#             .detach()
+#             .cpu()
+#             .numpy()
+#             .transpose(1, 2, 0)
+#         )
 
-        # Clip values to be in the range [0, 1]
-        image_np = np.clip(image_np * 255, 0, 255).astype(np.uint8)
-        image_gt_np = np.clip(image_gt_np * 255, 0, 255).astype(np.uint8)
+#         # Clip values to be in the range [0, 1]
+#         image_np = np.clip(image_np * 255, 0, 255).astype(np.uint8)
+#         image_gt_np = np.clip(image_gt_np * 255, 0, 255).astype(np.uint8)
 
-        fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 6))
-        ax[0].imshow(image_gt_np)
-        ax[0].axis("off")
-        ax[1].imshow(image_np)
-        ax[1].axis("off")
-        plt.tight_layout()
-        plt.show()
+#         fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12, 6))
+#         ax[0].imshow(image_gt_np)
+#         ax[0].axis("off")
+#         ax[1].imshow(image_np)
+#         ax[1].axis("off")
+#         plt.tight_layout()
+#         plt.show()
 
 
 # ### Save model
-with torch.no_grad():
-    trainer.save_model()
+# with torch.no_grad():
+#     trainer.save_model()
