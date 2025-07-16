@@ -16,7 +16,7 @@ from source.trainer import EDGSTrainer
 from source.utils_aux import set_seed
 
 
-@hydra.main(config_path="configs", config_name="train", version_base="1.2")
+@hydra.main(config_path="../configs", config_name="train", version_base="1.2")
 def main(cfg: omegaconf.DictConfig):
     _ = wandb.init(
         entity=cfg.wandb.entity,
