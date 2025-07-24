@@ -133,6 +133,11 @@ scene_folder
         |---points3D.bin
 ```
 
+```
+docker compose exec edgs-app bash
+```
+Then run training command as described below section.
+
 Nerf synthetic format is also acceptable. 
 
 You can also use functions provided in our code to convert a collection of images or a sinlge video into a desired format. However, this may requre tweaking and processing time can be large for large collection of images with little overlap.
@@ -143,7 +148,7 @@ You can also use functions provided in our code to convert a collection of image
 
 To optimize on a single scene in COLMAP format use this code.  
 ```bash
-python train.py \
+python script/train.py \
   train.gs_epochs=30000 \
   train.no_densify=True \
   gs.dataset.source_path=<scene folder> \
