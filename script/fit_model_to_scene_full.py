@@ -102,9 +102,9 @@ if os.path.exists(args.video_path):
             print(f"Failed to process video {args.video_path}. Exiting.")
             sys.exit(1)
         cfg.gs.dataset.source_path = scene_dir
-        cfg.gs.dataset.model_path = os.path.join(scene_dir, "models")
-        print(f"Set model_path to: {cfg.gs.dataset.model_path}")
-        os.makedirs(cfg.gs.dataset.model_path, exist_ok=True)
+        cfg.gs.dataset.output_path = os.path.join(scene_dir, "models")
+        print(f"Set output_path to: {cfg.gs.dataset.output_path}")
+        os.makedirs(cfg.gs.dataset.output_path, exist_ok=True)
     except Exception as e:
         print(f"Error during video preprocessing: {e}")
         sys.exit(1)
@@ -135,8 +135,8 @@ else:
 omegaconf.OmegaConf.resolve(cfg)
 set_seed(cfg.seed)
 # Init output folder
-print("Output folder: {}".format(cfg.gs.dataset.model_path))
-os.makedirs(cfg.gs.dataset.model_path, exist_ok=True)
+print("Output folder: {}".format(cfg.gs.dataset.output_path))
+os.makedirs(cfg.gs.dataset.output_path, exist_ok=True)
 # Init gs model
 gs = hydra.utils.instantiate(cfg.gs)
 trainer = EDGSTrainer(
@@ -182,7 +182,7 @@ with torch.no_grad():
         plt.tight_layout()
         plt.savefig(
             os.path.join(
-                cfg.gs.dataset.model_path,
+                cfg.gs.dataset.output_path,
                 f"viewpoint_{idx}_initial.png",
             )
         )

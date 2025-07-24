@@ -33,11 +33,10 @@ from source.visualization import (
     save_numpy_frames_as_mp4,
 )
 
-# Init RoMA model:
-sys.path.append("../submodules/RoMa")
-from romatch import roma_indoor
+# Init RoMA model with custom cache:
+from source.model_utils import load_roma_model_with_custom_cache
 
-roma_model = roma_indoor(device="cuda:0")
+roma_model = load_roma_model_with_custom_cache(model_type="indoor", device="cuda:0")
 roma_model.upsample_preds = False
 roma_model.symmetric = False
 
@@ -85,7 +84,7 @@ def run_training_pipeline(
     model_output_dir = f"../outputs/{scene_name}_trained"
 
     cfg.wandb.mode = "disabled"
-    cfg.gs.dataset.model_path = model_output_dir
+    cfg.gs.dataset.output_path = model_output_dir
     cfg.gs.dataset.source_path = scene_dir
     cfg.gs.dataset.images = "images"
 
@@ -106,7 +105,7 @@ def run_training_pipeline(
         cfg.init_wC.scaling_factor = 0.00077 * 2.0
 
     set_seed(cfg.seed)
-    os.makedirs(cfg.gs.dataset.model_path, exist_ok=True)
+    os.makedirs(cfg.gs.dataset.output_path, exist_ok=True)
 
     global trainer
     global MODEL_PATH
@@ -217,9 +216,9 @@ def run_training_pipeline(
     save_numpy_frames_as_mp4(
         frames=path_renderings, output_path=final_video_path, fps=30, center_crop=0.85
     )
-    MODEL_PATH = cfg.gs.dataset.model_path
+    MODEL_PATH = cfg.gs.dataset.output_path
     original_ply_path = os.path.join(  # Renamed for clarity
-        cfg.gs.dataset.model_path,
+        cfg.gs.dataset.output_path,
         f"point_cloud/iteration_{trainer.gs_step}/point_cloud.ply",
     )
     # This is the path to the copied file in an allowed directory

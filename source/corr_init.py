@@ -15,6 +15,7 @@ from scipy.spatial.distance import cdist
 
 import torch.nn.functional as F
 from romatch import roma_outdoor, roma_indoor
+from .model_utils import load_roma_model_with_custom_cache
 from utils.sh_utils import RGB2SH
 from romatch.utils import get_tuple_transform_ops
 
@@ -532,9 +533,9 @@ def init_gaussians_with_corr(gaussians, scene, cfg, device, verbose = False, rom
     """
     if roma_model is None:
         if cfg.roma_model == "indoors":
-            roma_model = roma_indoor(device=device)
+            roma_model = load_roma_model_with_custom_cache(model_type="indoor", device=device)
         else:
-            roma_model = roma_outdoor(device=device)
+            roma_model = load_roma_model_with_custom_cache(model_type="outdoor", device=device)
         roma_model.upsample_preds = False
         roma_model.symmetric = False
     M = cfg.matches_per_ref
@@ -753,9 +754,9 @@ def init_gaussians_with_corr_fast(gaussians, scene, cfg, device, verbose=False, 
 
     if roma_model is None:
         if cfg.roma_model == "indoors":
-            roma_model = roma_indoor(device=device)
+            roma_model = load_roma_model_with_custom_cache(model_type="indoor", device=device)
         else:
-            roma_model = roma_outdoor(device=device)
+            roma_model = load_roma_model_with_custom_cache(model_type="outdoor", device=device)
         roma_model.upsample_preds = False
         roma_model.symmetric = False
 

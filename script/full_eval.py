@@ -42,19 +42,19 @@ if not args.skip_training:
     for scene in mipnerf360_outdoor_scenes:
         source = args.mipnerf360 + "/" + scene 
         experiment = name + scene
-        os.system(f"python train.py  verbose=True gs.dataset.source_path={source} gs.dataset.model_path={args.output_path}/mipnerf/{scene} wandb.name={experiment} init_wC.use=True train.gs_epochs=30000 init_wC.matches_per_ref=25_000 init_wC.nns_per_ref=3 gs.dataset.images=images_4 init_wC.num_refs=180 train.no_densify=True")
+        os.system(f"python train.py  verbose=True gs.dataset.source_path={source} gs.dataset.output_path={args.output_path}/mipnerf/{scene} wandb.name={experiment} init_wC.use=True train.gs_epochs=30000 init_wC.matches_per_ref=25_000 init_wC.nns_per_ref=3 gs.dataset.images=images_4 init_wC.num_refs=180 train.no_densify=True")
     for scene in mipnerf360_indoor_scenes:
         source = args.mipnerf360 + "/" + scene
         experiment = name + scene
-        os.system(f"python train.py  verbose=True gs.dataset.source_path={source} gs.dataset.model_path={args.output_path}/mipnerf/{scene} wandb.name={experiment} init_wC.use=True train.gs_epochs=30000  init_wC.matches_per_ref=25_000 init_wC.nns_per_ref=3 gs.dataset.images=images_2 init_wC.num_refs=180 train.no_densify=True")
+        os.system(f"python train.py  verbose=True gs.dataset.source_path={source} gs.dataset.output_path={args.output_path}/mipnerf/{scene} wandb.name={experiment} init_wC.use=True train.gs_epochs=30000  init_wC.matches_per_ref=25_000 init_wC.nns_per_ref=3 gs.dataset.images=images_2 init_wC.num_refs=180 train.no_densify=True")
     for scene in tanks_and_temples_scenes:
         source = args.tanksandtemples + "/" + scene 
         experiment = name + scene +"_tandt"
-        os.system(f"python train.py  verbose=True gs.dataset.source_path={source} gs.dataset.model_path={args.output_path}/mipnerf/{scene} wandb.name={experiment} init_wC.use=True train.gs_epochs=30000  init_wC.matches_per_ref=15_000 init_wC.nns_per_ref=3 init_wC.num_refs=180 train.no_densify=True")
+        os.system(f"python train.py  verbose=True gs.dataset.source_path={source} gs.dataset.output_path={args.output_path}/mipnerf/{scene} wandb.name={experiment} init_wC.use=True train.gs_epochs=30000  init_wC.matches_per_ref=15_000 init_wC.nns_per_ref=3 init_wC.num_refs=180 train.no_densify=True")
     for scene in deep_blending_scenes:
         source = args.deepblending + "/" + scene
         experiment = name + scene + "_db"
-        os.system(f"python train.py  verbose=True gs.dataset.source_path={source} gs.dataset.model_path={args.output_path}/mipnerf/{scene} wandb.name={experiment} init_wC.use=True train.gs_epochs=30000 init_wC.matches_per_ref=15_000 init_wC.nns_per_ref=3 init_wC.num_refs=180 train.no_densify=True")
+        os.system(f"python train.py  verbose=True gs.dataset.source_path={source} gs.dataset.output_path={args.output_path}/mipnerf/{scene} wandb.name={experiment} init_wC.use=True train.gs_epochs=30000 init_wC.matches_per_ref=15_000 init_wC.nns_per_ref=3 init_wC.num_refs=180 train.no_densify=True")
 
 
 if not args.skip_rendering:

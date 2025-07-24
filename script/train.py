@@ -32,13 +32,13 @@ def main(cfg: omegaconf.DictConfig):
     set_seed(cfg.seed)
 
     # Init output folder
-    print("Output folder: {}".format(cfg.gs.dataset.model_path))
-    os.makedirs(cfg.gs.dataset.model_path, exist_ok=True)
-    with open(os.path.join(cfg.gs.dataset.model_path, "cfg_args"), "w") as cfg_log_f:
+    print("Output folder: {}".format(cfg.gs.dataset.output_path))
+    os.makedirs(cfg.gs.dataset.output_path, exist_ok=True)
+    with open(os.path.join(cfg.gs.dataset.output_path, "cfg_args"), "w") as cfg_log_f:
         params = {
             "sh_degree": 3,
             "source_path": cfg.gs.dataset.source_path,
-            "model_path": cfg.gs.dataset.model_path,
+            "model_path": cfg.gs.dataset.output_path,
             "images": cfg.gs.dataset.images,
             "depths": "",
             "resolution": -1,

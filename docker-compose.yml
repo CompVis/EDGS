@@ -21,5 +21,6 @@ services:
       - ./source:/EDGS/source # Example: map a local 'sources' folder
       - ./configs:/EDGS/configs # Example: map a local 'config' folder
       - ./notebooks:/EDGS/notebooks # Map a local 'notebooks' folder for JupyterLab
+      - ./model:/EDGS/model # Map model directory for persistent model caching
     stdin_open: true # Keep STDIN open for interactive processes
     tty: true        # Allocate a TTY
