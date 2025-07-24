@@ -152,7 +152,7 @@ python script/train.py \
   train.gs_epochs=30000 \
   train.no_densify=True \
   gs.dataset.source_path=<scene folder> \
-  gs.dataset.model_path=<output folder> \
+  gs.dataset.output_path=<output folder> \
   init_wC.matches_per_ref=20000 \
   init_wC.nns_per_ref=3 \
   init_wC.num_refs=180
@@ -166,7 +166,7 @@ python script/train.py \
   Disables densification. True by default.
   * `gs.dataset.source_path`
   Path to your input dataset directory. This should follow the same format as the original 3DGS dataset structure.
-  * `gs.dataset.model_path`
+  * `gs.dataset.output_path`
   Output directory where the trained model, logs, and renderings will be saved.
   * `init_wC.matches_per_ref`
   Number of 2D feature correspondences to extract per reference view for initialization. More matches leads to more gaussians.
