@@ -107,6 +107,12 @@ def evaluate(model_paths):
 if __name__ == "__main__":
     device = torch.device("cuda:0")
     torch.cuda.set_device(device)
+    
+    # Set torch hub cache directory to model/ folder to avoid re-downloading
+    model_dir = Path("model")
+    model_dir.mkdir(exist_ok=True)
+    torch.hub.set_dir(str(model_dir))
+    
     lpips_fn = lpips.LPIPS(net='vgg').to(device)
     # Set up command line argument parser
     parser = ArgumentParser(description="Training script parameters")
