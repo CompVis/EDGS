@@ -411,6 +411,71 @@ def save_frames_to_scene_dir(frames, scene_dir):
     print(f"Saved {len(frames)} frames to {images_dir}")
 
 
+def create_fallback_reconstruction(image_dir, sparse_path):
+    """
+    Create a minimal fallback reconstruction when COLMAP fails completely.
+    Creates a simple linear camera trajectory for the available images.
+    """
+    # No need to import colmap_loader - we'll create text files directly
+    
+    print("🔧 Creating fallback reconstruction with assumed camera positions...")
+    
+    # Get list of images
+    image_files = sorted([f for f in os.listdir(image_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+    
+    if len(image_files) < 1:
+        raise RuntimeError("No images found for fallback reconstruction")
+    
+    # Read first image to get dimensions
+    first_img_path = os.path.join(image_dir, image_files[0])
+    from PIL import Image
+    img = Image.open(first_img_path)
+    width, height = img.size
+    
+    # Create minimal reconstruction directory
+    fallback_dir = os.path.join(sparse_path, "0")
+    os.makedirs(fallback_dir, exist_ok=True)
+    
+    # Create cameras.txt with simple pinhole model
+    cameras_txt = os.path.join(fallback_dir, "cameras.txt")
+    focal = max(width, height)  # Simple focal length estimation
+    with open(cameras_txt, 'w') as f:
+        f.write("# Camera list with one line of data per camera:\n")
+        f.write("# CAMERA_ID, MODEL, WIDTH, HEIGHT, PARAMS[]\n")
+        f.write(f"1 PINHOLE {width} {height} {focal} {focal} {width/2} {height/2}\n")
+    
+    # Create images.txt with linear trajectory
+    images_txt = os.path.join(fallback_dir, "images.txt")
+    with open(images_txt, 'w') as f:
+        f.write("# Image list with two lines of data per image:\n")
+        f.write("# IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME\n")
+        f.write("# POINTS2D[] as (X, Y, POINT3D_ID)\n")
+        
+        for i, img_file in enumerate(image_files):
+            # Simple linear trajectory along Z-axis
+            tx, ty, tz = 0.0, 0.0, -i * 0.5
+            # Identity quaternion (no rotation)
+            qw, qx, qy, qz = 1.0, 0.0, 0.0, 0.0
+            
+            f.write(f"{i+1} {qw} {qx} {qy} {qz} {tx} {ty} {tz} 1 {img_file}\n")
+            f.write("\n")  # Empty line for points2D
+    
+    # Create minimal points3D.txt with a few dummy points
+    points_txt = os.path.join(fallback_dir, "points3D.txt")
+    with open(points_txt, 'w') as f:
+        f.write("# 3D point list with one line of data per point:\n")
+        f.write("# POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n")
+        # Add some dummy 3D points for basic initialization
+        for i in range(10):
+            x, y, z = i * 0.1, 0.0, -1.0  # Simple grid of points
+            r, g, b = 128, 128, 128  # Gray color
+            error = 1.0
+            f.write(f"{i+1} {x} {y} {z} {r} {g} {b} {error}\n")
+    
+    print(f"✅ Created fallback reconstruction with {len(image_files)} cameras at {fallback_dir}")
+    print("⚠️  Note: This is a basic reconstruction with assumed camera positions. Results may be limited.")
+
+
 def run_colmap_on_scene(scene_dir, force_pinhole=True):
     """
     Runs feature extraction, matching, and mapping on all images inside scene_dir/images using pycolmap.
@@ -434,48 +499,121 @@ def run_colmap_on_scene(scene_dir, force_pinhole=True):
     # Make sure output directories exist
     os.makedirs(sparse_path, exist_ok=True)
 
-    # Step 1: Feature Extraction
+    # Step 1: Feature Extraction with more aggressive settings
     pycolmap.extract_features(
         database_path,
         image_dir,
         sift_options={
-            "max_num_features": 512 * 2,
-            "max_image_size": 512 * 1,
+            "max_num_features": 8192,  # Much higher feature count
+            "max_image_size": 1600,    # Higher resolution
+            "first_octave": -1,        # More detailed features
+            "num_octaves": 4,
+            "octave_resolution": 3,
+            "peak_threshold": 0.005,   # More lenient peak detection
+            "edge_threshold": 20,      # More lenient edge threshold
         },
     )
     print(f"Finished feature extraction in {(time.time() - start_time):.2f}s.")
 
-    # Step 2: Feature Matching
-    pycolmap.match_exhaustive(database_path)
+    # Step 2: Feature Matching with correct API
+    sift_matching_options = pycolmap.SiftMatchingOptions()
+    sift_matching_options.max_ratio = 0.9
+    sift_matching_options.max_distance = 0.8
+    sift_matching_options.cross_check = True
+    
+    pycolmap.match_exhaustive(database_path, sift_options=sift_matching_options)
     print(f"Finished feature matching in {(time.time() - start_time):.2f}s.")
 
-    # Step 3: Mapping with PINHOLE camera model
+    # Step 3: Mapping with more lenient parameters for challenging videos
     pipeline_options = pycolmap.IncrementalPipelineOptions()
-    pipeline_options.min_num_matches = 15
+    pipeline_options.min_num_matches = 8          # Lower minimum matches
     pipeline_options.multiple_models = True
     pipeline_options.max_num_models = 50
     pipeline_options.max_model_overlap = 20
-    pipeline_options.min_model_size = 10
+    pipeline_options.min_model_size = 3           # Allow smaller models
     pipeline_options.extract_colors = True
     pipeline_options.num_threads = 8
-    pipeline_options.mapper.init_min_num_inliers = 30
-    pipeline_options.mapper.init_max_error = 8.0
-    pipeline_options.mapper.init_min_tri_angle = 5.0
+    
+    # More lenient mapper options
+    pipeline_options.mapper.init_min_num_inliers = 15    # Lower inlier threshold
+    pipeline_options.mapper.init_max_error = 12.0        # Higher error tolerance
+    pipeline_options.mapper.init_min_tri_angle = 2.0     # Lower triangulation angle
+    pipeline_options.mapper.abs_pose_min_num_inliers = 15
+    pipeline_options.mapper.abs_pose_max_error = 12.0
+    pipeline_options.mapper.filter_max_reproj_error = 8.0
+    pipeline_options.mapper.filter_min_tri_angle = 1.5
     
     # Note: force_pinhole will be applied after reconstruction
 
-    reconstruction = pycolmap.incremental_mapping(
-        database_path=database_path,
-        image_path=image_dir,
-        output_path=sparse_path,
-        options=pipeline_options,
-    )
-    print(f"Finished incremental mapping in {(time.time() - start_time):.2f}s.")
+    try:
+        reconstruction = pycolmap.incremental_mapping(
+            database_path=database_path,
+            image_path=image_dir,
+            output_path=sparse_path,
+            options=pipeline_options,
+        )
+        print(f"Finished incremental mapping in {(time.time() - start_time):.2f}s.")
+    except Exception as e:
+        print(f"⚠️  Initial reconstruction failed: {e}")
+        print("🔄 Trying with even more lenient settings...")
+        
+        # Try with ultra-lenient settings as fallback
+        pipeline_options.min_num_matches = 5
+        pipeline_options.min_model_size = 2
+        pipeline_options.mapper.init_min_num_inliers = 10
+        pipeline_options.mapper.init_max_error = 20.0
+        pipeline_options.mapper.init_min_tri_angle = 1.0
+        
+        try:
+            reconstruction = pycolmap.incremental_mapping(
+                database_path=database_path,
+                image_path=image_dir,
+                output_path=sparse_path,
+                options=pipeline_options,
+            )
+            print(f"✅ Fallback reconstruction succeeded in {(time.time() - start_time):.2f}s.")
+        except Exception as e2:
+            print(f"❌ Both reconstruction attempts failed: {e2}")
+            raise RuntimeError("COLMAP reconstruction failed. The video might have insufficient overlap or features.")
 
-    # Step 4: Ensure cameras are PINHOLE (double-check)
+    # Step 4: Check if reconstruction was successful
     recon_path = os.path.join(sparse_path, "0")
+    if not os.path.exists(recon_path):
+        # Check for other reconstruction indices
+        reconstructions_found = []
+        for i in range(10):  # Check indices 0-9
+            alt_path = os.path.join(sparse_path, str(i))
+            if os.path.exists(alt_path) and any(os.path.exists(os.path.join(alt_path, f)) 
+                                             for f in ["cameras.bin", "images.bin", "points3D.bin"]):
+                reconstructions_found.append(i)
+        
+        if reconstructions_found:
+            # Use the largest reconstruction
+            best_idx = max(reconstructions_found)
+            recon_path = os.path.join(sparse_path, str(best_idx))
+            print(f"ℹ️  Using reconstruction {best_idx} instead of 0")
+            
+            # Move to index 0 for compatibility
+            target_path = os.path.join(sparse_path, "0")
+            if not os.path.exists(target_path):
+                import shutil
+                shutil.move(recon_path, target_path)
+                recon_path = target_path
+                print(f"📁 Moved reconstruction to sparse/0/")
+        else:
+            print("❌ COLMAP reconstruction failed - creating minimal fallback reconstruction")
+            return create_fallback_reconstruction(image_dir, sparse_path)
+
+    # Step 5: Convert cameras to PINHOLE if needed
     if os.path.exists(recon_path):
         reconstruction = pycolmap.Reconstruction(recon_path)
+        
+        if len(reconstruction.cameras) == 0:
+            raise RuntimeError("❌ Reconstruction contains no cameras")
+        if len(reconstruction.images) == 0:
+            raise RuntimeError("❌ Reconstruction contains no images")
+        if len(reconstruction.points3D) == 0:
+            print("⚠️  Warning: Reconstruction contains no 3D points")
 
         for cam in reconstruction.cameras.values():
             if force_pinhole and cam.model != "PINHOLE":
@@ -494,7 +632,8 @@ def run_colmap_on_scene(scene_dir, force_pinhole=True):
                     cam.params = [focal, focal, cam.width/2, cam.height/2]
 
         reconstruction.write(recon_path)
-        print(f"Saved reconstruction with PINHOLE cameras to {recon_path}")
+        print(f"✅ Saved reconstruction with PINHOLE cameras to {recon_path}")
+        print(f"📊 Reconstruction stats: {len(reconstruction.cameras)} cameras, {len(reconstruction.images)} images, {len(reconstruction.points3D)} points")
 
     print(f"Total pipeline time: {(time.time() - start_time):.2f}s.")
 

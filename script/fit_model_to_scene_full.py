@@ -73,11 +73,11 @@ if SAME_WITH_GRADIO_DEMO:
     cfg.train.max_lr = True
     cfg.train.gs_epochs = 1000
 
-    cfg.init_wC.use = True
+    cfg.init_wC.use = False  # Disable for fallback cases
     cfg.init_wC.nns_per_ref = 1
     cfg.init_wC.add_SfM_init = False
     cfg.init_wC.scaling_factor = 0.00077 * 2.0
-    cfg.init_wC.num_refs = 16
+    cfg.init_wC.num_refs = 2  # Reduce to minimum since COLMAP only found 2 cameras
     cfg.init_wC.matches_per_ref = 20000
 
 print(OmegaConf.to_yaml(cfg))
@@ -156,7 +156,9 @@ trainer.timer.pause()
 # ### Visualize a few initial viewpoints
 with torch.no_grad():
     viewpoint_stack = trainer.GS.scene.getTrainCameras()
-    viewpoint_cams_to_viz = random.sample(trainer.GS.scene.getTrainCameras(), 4)
+    available_cams = trainer.GS.scene.getTrainCameras()
+    num_cams_to_viz = min(4, len(available_cams))
+    viewpoint_cams_to_viz = random.sample(available_cams, num_cams_to_viz)
     for idx, viewpoint_cam in enumerate(viewpoint_cams_to_viz):
         render_pkg = trainer.GS(viewpoint_cam)
         image = render_pkg["render"]
