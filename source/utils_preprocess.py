@@ -45,18 +45,23 @@ def resize_max_side(frame, max_size):
     return frame
 
 
-def read_video_frames(video_input, k=1, max_size=1024):
+def extract_video_frames_to_disk(video_input, output_dir, k=1, max_size=1024):
     """
-    Extracts every k-th frame from a video or list of images, resizes to max size, and returns frames as list.
+    Extracts every k-th frame from a video using ffmpeg, saves to disk to avoid memory overflow.
 
     Parameters:
         video_input (str, file-like, or list): Path to video file, file-like object, or list of image files.
+        output_dir (str): Directory to save extracted frames.
         k (int): Interval for frame extraction (every k-th frame).
         max_size (int): Maximum size for width or height after resizing.
 
     Returns:
-        frames (list): List of resized frames (numpy arrays).
+        frame_paths (list): List of paths to extracted frame files.
     """
+    import subprocess
+    import tempfile
+    import shutil
+    
     # Handle list of image files (not single video in a list)
     if isinstance(video_input, list):
         # If it's a single video in a list, treat it as video
@@ -65,13 +70,22 @@ def read_video_frames(video_input, k=1, max_size=1024):
         ):
             video_input = video_input[0]  # unwrap single video file
         else:
-            # Treat as list of images
-            frames = []
-            for img_file in video_input:
+            # Treat as list of images - copy and resize them
+            frame_paths = []
+            for idx, img_file in enumerate(video_input):
                 img = Image.open(img_file.name).convert("RGB")
-                img.thumbnail((max_size, max_size))
-                frames.append(np.array(img)[..., ::-1])
-            return frames
+                # Resize if necessary
+                width, height = img.size
+                if max(width, height) > max_size:
+                    scale = max_size / max(width, height)
+                    new_width = int(width * scale)
+                    new_height = int(height * scale)
+                    img = img.resize((new_width, new_height), Image.LANCZOS)
+                
+                output_path = os.path.join(output_dir, f"frame_{idx:08d}.jpg")
+                img.save(output_path, "JPEG", quality=95)
+                frame_paths.append(output_path)
+            return frame_paths
 
     # Handle file-like or path
     if hasattr(video_input, "name"):
@@ -83,31 +97,84 @@ def read_video_frames(video_input, k=1, max_size=1024):
             "Unsupported video input type. Must be a filepath, file-like object, or list of images."
         )
 
+    # Create output directory
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Use ffmpeg to extract frames
+    print(f"Extracting frames from video using ffmpeg...")
+    try:
+        # First, get video info to calculate frame interval
+        result = subprocess.run([
+            'ffprobe', '-v', 'quiet', '-count_frames', '-select_streams', 'v:0',
+            '-show_entries', 'stream=nb_frames', '-of', 'csv=p=0', video_path
+        ], capture_output=True, text=True, check=True)
+        
+        total_frames = int(result.stdout.strip())
+        print(f"Total frames in video: {total_frames}")
+        
+        # Extract every k-th frame using ffmpeg with scaling
+        ffmpeg_cmd = [
+            'ffmpeg', '-i', video_path, '-y',
+            '-vf', f'select=not(mod(n\\,{k})),scale=w=min({max_size}\\,iw):h=min({max_size}\\,ih):force_original_aspect_ratio=decrease',
+            '-q:v', '2',  # High quality
+            os.path.join(output_dir, 'frame_%08d.jpg')
+        ]
+        
+        subprocess.run(ffmpeg_cmd, check=True, capture_output=True)
+        
+        # Get list of extracted frame paths
+        frame_paths = sorted([
+            os.path.join(output_dir, f) for f in os.listdir(output_dir) 
+            if f.startswith('frame_') and f.endswith('.jpg')
+        ])
+        
+        print(f"Extracted {len(frame_paths)} frames to {output_dir}")
+        return frame_paths
+        
+    except subprocess.CalledProcessError as e:
+        print(f"ffmpeg failed: {e}")
+        # Fallback to opencv if ffmpeg fails
+        return extract_video_frames_fallback(video_path, output_dir, k, max_size)
+    except FileNotFoundError:
+        print("ffmpeg not found, using opencv fallback")
+        return extract_video_frames_fallback(video_path, output_dir, k, max_size)
+
+
+def extract_video_frames_fallback(video_path, output_dir, k=1, max_size=1024):
+    """
+    Fallback method using opencv, but saves frames to disk instead of memory.
+    """
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise ValueError(f"Error: Could not open video {video_path}.")
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     frame_count = 0
-    frames = []
+    frame_paths = []
 
-    with tqdm(total=total_frames // k, desc="Processing Video", unit="frame") as pbar:
+    os.makedirs(output_dir, exist_ok=True)
+
+    with tqdm(total=total_frames // k, desc="Extracting Video Frames", unit="frame") as pbar:
         while True:
             ret, frame = cap.read()
             if not ret:
                 break
             if frame_count % k == 0:
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                # Resize frame
                 h, w = frame.shape[:2]
                 scale = max(h, w) / max_size
                 if scale > 1:
                     frame = cv2.resize(frame, (int(w / scale), int(h / scale)))
-                frames.append(frame[..., [2, 1, 0]])
+                
+                # Save frame to disk
+                frame_path = os.path.join(output_dir, f"frame_{len(frame_paths):08d}.jpg")
+                cv2.imwrite(frame_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                frame_paths.append(frame_path)
                 pbar.update(1)
             frame_count += 1
 
     cap.release()
-    return frames
+    return frame_paths
 
 
 def resize_max_side(frame, max_size):
@@ -202,9 +269,48 @@ def variance_of_laplacian(image):
     return cv2.Laplacian(image, cv2.CV_64F).var()
 
 
+def preprocess_frame_paths(frame_paths, verbose=False):
+    """
+    Compute sharpness scores for a list of frame files using multi-scale Laplacian variance.
+
+    Args:
+        frame_paths (list of str): List of paths to frame image files.
+        verbose (bool): If True, print scores.
+
+    Returns:
+        list of float: Sharpness scores for each frame.
+    """
+    scores = []
+
+    for idx, frame_path in enumerate(tqdm(frame_paths, desc="Scoring frames")):
+        # Load frame from disk
+        frame = cv2.imread(frame_path)
+        if frame is None:
+            print(f"Warning: Could not load frame {frame_path}")
+            scores.append(0.0)
+            continue
+            
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        fm = (
+            variance_of_laplacian(gray)
+            + variance_of_laplacian(cv2.resize(gray, (0, 0), fx=0.75, fy=0.75))
+            + variance_of_laplacian(cv2.resize(gray, (0, 0), fx=0.5, fy=0.5))
+            + variance_of_laplacian(cv2.resize(gray, (0, 0), fx=0.25, fy=0.25))
+        )
+
+        if verbose:
+            print(f"Frame {idx} ({os.path.basename(frame_path)}): Sharpness Score = {fm:.2f}")
+
+        scores.append(fm)
+
+    return scores
+
+
 def preprocess_frames(frames, verbose=False):
     """
     Compute sharpness scores for a list of frames using multi-scale Laplacian variance.
+    DEPRECATED: Use preprocess_frame_paths instead to avoid memory issues.
 
     Args:
         frames (list of np.ndarray): List of frames (BGR images).
@@ -262,9 +368,32 @@ def select_optimal_frames(scores, k):
     return sorted(selected_indices)
 
 
+def copy_selected_frames_to_scene_dir(selected_frame_paths, scene_dir):
+    """
+    Copies selected frame files into the target scene directory under 'images/' subfolder.
+
+    Args:
+        selected_frame_paths (list of str): List of paths to selected frame files.
+        scene_dir (str): Target path where 'images/' subfolder will be created.
+    """
+    import shutil
+    
+    images_dir = os.path.join(scene_dir, "images")
+    os.makedirs(images_dir, exist_ok=True)
+
+    for idx, frame_path in enumerate(selected_frame_paths):
+        filename = os.path.join(
+            images_dir, f"{idx:08d}.jpg"
+        )  # 00000000.jpg, 00000001.jpg, etc.
+        shutil.copy2(frame_path, filename)
+
+    print(f"Copied {len(selected_frame_paths)} selected frames to {images_dir}")
+
+
 def save_frames_to_scene_dir(frames, scene_dir):
     """
     Saves a list of frames into the target scene directory under 'images/' subfolder.
+    DEPRECATED: Use copy_selected_frames_to_scene_dir to avoid memory issues.
 
     Args:
         frames (list of np.ndarray): List of frames (BGR images) to save.
@@ -282,12 +411,14 @@ def save_frames_to_scene_dir(frames, scene_dir):
     print(f"Saved {len(frames)} frames to {images_dir}")
 
 
-def run_colmap_on_scene(scene_dir):
+def run_colmap_on_scene(scene_dir, force_pinhole=True):
     """
     Runs feature extraction, matching, and mapping on all images inside scene_dir/images using pycolmap.
+    Forces PINHOLE camera model to avoid distortion issues.
 
     Args:
         scene_dir (str): Path to scene directory containing 'images' folder.
+        force_pinhole (bool): If True, forces PINHOLE camera model during reconstruction.
 
     TODO: if the function hasn't managed to match all the frames either increase image size,
     increase number of features or just remove those frames from the folder scene_dir/images
@@ -318,7 +449,7 @@ def run_colmap_on_scene(scene_dir):
     pycolmap.match_exhaustive(database_path)
     print(f"Finished feature matching in {(time.time() - start_time):.2f}s.")
 
-    # Step 3: Mapping
+    # Step 3: Mapping with PINHOLE camera model
     pipeline_options = pycolmap.IncrementalPipelineOptions()
     pipeline_options.min_num_matches = 15
     pipeline_options.multiple_models = True
@@ -330,6 +461,8 @@ def run_colmap_on_scene(scene_dir):
     pipeline_options.mapper.init_min_num_inliers = 30
     pipeline_options.mapper.init_max_error = 8.0
     pipeline_options.mapper.init_min_tri_angle = 5.0
+    
+    # Note: force_pinhole will be applied after reconstruction
 
     reconstruction = pycolmap.incremental_mapping(
         database_path=database_path,
@@ -339,21 +472,121 @@ def run_colmap_on_scene(scene_dir):
     )
     print(f"Finished incremental mapping in {(time.time() - start_time):.2f}s.")
 
-    # Step 4: Post-process Cameras to SIMPLE_PINHOLE
+    # Step 4: Ensure cameras are PINHOLE (double-check)
     recon_path = os.path.join(sparse_path, "0")
-    reconstruction = pycolmap.Reconstruction(recon_path)
+    if os.path.exists(recon_path):
+        reconstruction = pycolmap.Reconstruction(recon_path)
 
-    for cam in reconstruction.cameras.values():
-        cam.model = "SIMPLE_PINHOLE"
-        cam.params = cam.params[:3]  # Keep only [f, cx, cy]
+        for cam in reconstruction.cameras.values():
+            if force_pinhole and cam.model != "PINHOLE":
+                print(f"Converting camera {cam.camera_id} from {cam.model} to PINHOLE")
+                cam.model = "PINHOLE"
+                # Ensure we have exactly 4 parameters [fx, fy, cx, cy]
+                if len(cam.params) >= 4:
+                    cam.params = cam.params[:4]
+                elif len(cam.params) >= 3:
+                    # Duplicate focal length if we only have 3 params
+                    f, cx, cy = cam.params[:3]
+                    cam.params = [f, f, cx, cy]
+                else:
+                    # Default values if params are insufficient
+                    focal = max(cam.width, cam.height)
+                    cam.params = [focal, focal, cam.width/2, cam.height/2]
 
-    reconstruction.write(recon_path)
+        reconstruction.write(recon_path)
+        print(f"Saved reconstruction with PINHOLE cameras to {recon_path}")
 
     print(f"Total pipeline time: {(time.time() - start_time):.2f}s.")
 
 
 def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=1024):
     """
+    Memory-efficient helper function to process video/images, select optimal frames,
+    and save them to the output_dir/images without loading all frames into memory.
+    """
+    import tempfile
+    import shutil
+    
+    # Create temporary directory for extracted frames
+    temp_frames_dir = tempfile.mkdtemp(prefix="edgs_frames_")
+    
+    try:
+        if isinstance(input_path, (str, os.PathLike)):  # If input_path is a path string
+            if os.path.isdir(input_path):  # If it's a directory of images
+                print(f"Processing image directory: {input_path}")
+                # Copy and resize images to temp directory
+                frame_paths = []
+                image_files = sorted([
+                    f for f in os.listdir(input_path)
+                    if f.lower().endswith(("jpg", "jpeg", "png"))
+                ])
+                
+                for idx, img_file in enumerate(image_files):
+                    img = Image.open(os.path.join(input_path, img_file)).convert("RGB")
+                    # Resize if necessary
+                    width, height = img.size
+                    if max(width, height) > max_size:
+                        scale = max_size / max(width, height)
+                        new_width = int(width * scale)
+                        new_height = int(height * scale)
+                        img = img.resize((new_width, new_height), Image.LANCZOS)
+                    
+                    output_path = os.path.join(temp_frames_dir, f"frame_{idx:08d}.jpg")
+                    img.save(output_path, "JPEG", quality=95)
+                    frame_paths.append(output_path)
+                    
+            else:  # If it's a single video file path
+                print(f"Processing video file: {input_path}")
+                frame_paths = extract_video_frames_to_disk(
+                    video_input=input_path, 
+                    output_dir=temp_frames_dir, 
+                    max_size=max_size
+                )
+        elif hasattr(input_path, "name"):  # File-like object (e.g., from Gradio upload)
+            print(f"Processing uploaded video file: {input_path.name}")
+            frame_paths = extract_video_frames_to_disk(
+                video_input=input_path, 
+                output_dir=temp_frames_dir, 
+                max_size=max_size
+            )
+        else:
+            raise ValueError(f"Unsupported input_path type: {type(input_path)}")
+
+        if not frame_paths:
+            print("No frames extracted or read.")
+            return []
+
+        # Score frames without loading them all into memory
+        print(f"Scoring {len(frame_paths)} frames...")
+        frames_scores = preprocess_frame_paths(frame_paths)
+        
+        # Select optimal frames
+        selected_frames_indices = select_optimal_frames(
+            scores=frames_scores, k=min(num_ref_views, len(frame_paths))
+        )
+        
+        # Get paths to selected frames
+        selected_frame_paths = [frame_paths[idx] for idx in selected_frames_indices]
+        
+        print(f"Selected {len(selected_frame_paths)} optimal frames out of {len(frame_paths)}")
+
+        # Copy selected frames to scene directory
+        copy_selected_frames_to_scene_dir(selected_frame_paths, output_dir)
+        
+        # Return empty list since we're not loading frames into memory anymore
+        # The actual frames are saved to disk in the scene directory
+        return []
+        
+    finally:
+        # Clean up temporary directory
+        if os.path.exists(temp_frames_dir):
+            shutil.rmtree(temp_frames_dir)
+            print(f"Cleaned up temporary frame directory: {temp_frames_dir}")
+
+
+def process_input_for_colmap_legacy(input_path, num_ref_views, output_dir, max_size=1024):
+    """
+    DEPRECATED: Original memory-intensive version.
     Helper function to read frames from video or image folder, select optimal ones,
     and save them to the output_dir/images.
     This is based on process_input from gradio_demo.py.
@@ -488,16 +721,19 @@ def orchestrate_video_to_colmap_scene(
     os.makedirs(scene_dir, exist_ok=True)
     print(f"Created scene directory for COLMAP: {scene_dir}")
 
+    # Process video/images to extract and select optimal frames
     selected_frames_data = process_input_for_colmap(
         actual_input_path_str, num_ref_views, scene_dir, max_size
     )
-    if not selected_frames_data:
-        print(f"Frame processing failed for {input_path}. Aborting COLMAP.")
-        # Optionally clean up scene_dir if it's truly temporary and processing failed
-        # shutil.rmtree(scene_dir)
+    
+    # Check if images were saved to scene directory
+    images_dir = os.path.join(scene_dir, "images")
+    if not os.path.exists(images_dir) or not os.listdir(images_dir):
+        print(f"Frame processing failed for {input_path}. No images found in {images_dir}. Aborting COLMAP.")
         return [], None
 
-    run_colmap_on_scene(scene_dir)  # This function should create scene_dir/sparse/0
+    # Run COLMAP with PINHOLE camera model enforced
+    run_colmap_on_scene(scene_dir, force_pinhole=True)  # Force PINHOLE to avoid distortion
 
     print(f"COLMAP processing complete for {scene_dir}")
     return selected_frames_data, scene_dir
