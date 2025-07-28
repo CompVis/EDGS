@@ -588,22 +588,26 @@ def run_colmap_on_scene(scene_dir, force_pinhole=True, use_automatic_mode=False)
         pipeline_options.mapper.init_min_num_inliers = 30    # Higher quality initialization
         pipeline_options.mapper.init_max_error = 4.0         # Tighter error tolerance
         pipeline_options.mapper.init_min_tri_angle = 4.0     # Better triangulation angle
-        pipeline_options.mapper.init_max_reg_trials = 3      # More initialization attempts
+        # pipeline_options.mapper.init_max_reg_trials = 3      # Not available in this pycolmap version
         
         pipeline_options.mapper.abs_pose_min_num_inliers = 30
         pipeline_options.mapper.abs_pose_max_error = 8.0
         pipeline_options.mapper.abs_pose_min_inlier_ratio = 0.25
-        pipeline_options.mapper.abs_pose_min_num_correspondences = 3
+        # pipeline_options.mapper.abs_pose_min_num_correspondences = 3  # Not available in this pycolmap version
         
         pipeline_options.mapper.filter_max_reproj_error = 4.0
         pipeline_options.mapper.filter_min_tri_angle = 0.5
         
-        pipeline_options.mapper.local_ba_num_images = 6
-        pipeline_options.mapper.local_ba_max_num_iterations = 25
+        # pipeline_options.mapper.local_ba_num_images = 6  # May not be available
+        # pipeline_options.mapper.local_ba_max_num_iterations = 25  # May not be available
         
-        pipeline_options.mapper.global_ba_refine_focal_length = True
-        pipeline_options.mapper.global_ba_refine_principal_point = False
-        pipeline_options.mapper.global_ba_refine_extra_params = False
+        # Bundle adjustment refinement settings (may not all be available)
+        try:
+            pipeline_options.mapper.global_ba_refine_focal_length = True
+            pipeline_options.mapper.global_ba_refine_principal_point = False
+            pipeline_options.mapper.global_ba_refine_extra_params = False
+        except AttributeError:
+            pass  # Skip if not available
     else:
         # Original settings
         pipeline_options.min_num_matches = 8
