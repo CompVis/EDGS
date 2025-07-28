@@ -59,13 +59,19 @@ parser.add_argument(
     default=os.path.join(project_root, "outputs"),  # Use project_root
     help="Base directory where processed COLMAP scenes will be stored.",
 )
+parser.add_argument(
+    "--colmap_scene_dir",
+    type=str,
+    default=None,
+    help="Path to existing COLMAP scene directory. If provided, skips video processing and uses this scene directly.",
+)
 args = parser.parse_args()
 # --- End argument parsing ---
 
 with initialize(config_path="../configs", version_base="1.1"):
     cfg = compose(config_name="train")
 
-SAME_WITH_GRADIO_DEMO = True
+SAME_WITH_GRADIO_DEMO = False
 if SAME_WITH_GRADIO_DEMO:
     cfg.gs.opt.opacity_reset_interval = 1_000_000
     cfg.train.reduce_opacity = True
@@ -85,9 +91,34 @@ print(OmegaConf.to_yaml(cfg))
 
 # # 3. Init input parameters
 
-# ## 3.1 Optionally preprocess video
-# process the input video
-if os.path.exists(args.video_path):
+# ## 3.1 Set up scene directory
+if args.colmap_scene_dir:
+    # Use existing COLMAP scene
+    if not os.path.exists(args.colmap_scene_dir):
+        print(f"Error: COLMAP scene directory does not exist: {args.colmap_scene_dir}")
+        sys.exit(1)
+    
+    # Verify it's a valid COLMAP scene
+    sparse_dir = os.path.join(args.colmap_scene_dir, "sparse", "0")
+    if not os.path.exists(sparse_dir):
+        print(f"Error: No sparse reconstruction found at {sparse_dir}")
+        sys.exit(1)
+    
+    required_files = ["cameras.bin", "images.bin", "points3D.bin"]
+    missing_files = [f for f in required_files if not os.path.exists(os.path.join(sparse_dir, f))]
+    if missing_files:
+        print(f"Error: Missing COLMAP files: {missing_files}")
+        sys.exit(1)
+    
+    scene_dir = args.colmap_scene_dir
+    print(f"Using existing COLMAP scene: {scene_dir}")
+    
+else:
+    # Process video to create COLMAP scene
+    if not os.path.exists(args.video_path):
+        print(f"Error: Video file does not exist: {args.video_path}")
+        sys.exit(1)
+        
     print(f"Starting video processing for: {args.video_path}")
     try:
         # The first return value 'images_data' might not be directly used by the trainer
@@ -102,13 +133,15 @@ if os.path.exists(args.video_path):
         if scene_dir is None:
             print(f"Failed to process video {args.video_path}. Exiting.")
             sys.exit(1)
-        cfg.gs.dataset.source_path = scene_dir
-        cfg.gs.dataset.model_path = os.path.join(scene_dir, "models")
-        print(f"Set model_path to: {cfg.gs.dataset.model_path}")
-        os.makedirs(cfg.gs.dataset.model_path, exist_ok=True)
     except Exception as e:
         print(f"Error during video preprocessing: {e}")
         sys.exit(1)
+
+# Set up paths for EDGS
+cfg.gs.dataset.source_path = scene_dir
+cfg.gs.dataset.model_path = os.path.join(scene_dir, "models")
+print(f"Set model_path to: {cfg.gs.dataset.model_path}")
+os.makedirs(cfg.gs.dataset.model_path, exist_ok=True)
 
 
 # # 4. Initilize model and logger
