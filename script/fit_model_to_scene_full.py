@@ -77,7 +77,7 @@ if SAME_WITH_GRADIO_DEMO:
     cfg.init_wC.nns_per_ref = 1
     cfg.init_wC.add_SfM_init = False
     cfg.init_wC.scaling_factor = 0.00077 * 2.0
-    cfg.init_wC.num_refs = 2  # Reduce to minimum since COLMAP only found 2 cameras
+    cfg.init_wC.num_refs = 10  # Use more reference views for better reconstruction
     cfg.init_wC.matches_per_ref = 20000
 
 print(OmegaConf.to_yaml(cfg))
@@ -97,6 +97,7 @@ if os.path.exists(args.video_path):
             cfg.init_wC.num_refs,  # Assuming you added this arg
             max_size=1024,  # Or make it an arg
             base_work_dir=args.outputs_dir,  # Assuming you added this arg
+            use_automatic_mode=True,  # Use automatic reconstructor-like settings
         )
         if scene_dir is None:
             print(f"Failed to process video {args.video_path}. Exiting.")

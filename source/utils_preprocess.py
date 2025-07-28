@@ -476,7 +476,7 @@ def create_fallback_reconstruction(image_dir, sparse_path):
     print("⚠️  Note: This is a basic reconstruction with assumed camera positions. Results may be limited.")
 
 
-def run_colmap_on_scene(scene_dir, force_pinhole=True):
+def run_colmap_on_scene(scene_dir, force_pinhole=True, use_automatic_mode=False):
     """
     Runs feature extraction, matching, and mapping on all images inside scene_dir/images using pycolmap.
     Forces PINHOLE camera model to avoid distortion issues.
@@ -484,12 +484,12 @@ def run_colmap_on_scene(scene_dir, force_pinhole=True):
     Args:
         scene_dir (str): Path to scene directory containing 'images' folder.
         force_pinhole (bool): If True, forces PINHOLE camera model during reconstruction.
-
-    TODO: if the function hasn't managed to match all the frames either increase image size,
-    increase number of features or just remove those frames from the folder scene_dir/images
+        use_automatic_mode (bool): If True, use settings similar to automatic_reconstructor.
     """
     start_time = time.time()
     print(f"Running COLMAP pipeline on all images inside {scene_dir}")
+    if use_automatic_mode:
+        print("Using automatic_reconstructor-like settings...")
 
     # Setup paths
     database_path = os.path.join(scene_dir, "database.db")
@@ -499,49 +499,128 @@ def run_colmap_on_scene(scene_dir, force_pinhole=True):
     # Make sure output directories exist
     os.makedirs(sparse_path, exist_ok=True)
 
-    # Step 1: Feature Extraction with more aggressive settings
+    # Step 1: Feature Extraction with automatic_reconstructor-like settings
+    if use_automatic_mode:
+        # Automatic reconstructor uses these defaults
+        sift_options = {
+            "max_num_features": 16384,  # Even higher for forest scenes
+            "max_image_size": 3200,     # Much higher resolution
+            "first_octave": -1,         # More detailed features
+            "num_octaves": 4,
+            "octave_resolution": 3,
+            "peak_threshold": 0.001,    # Very sensitive feature detection
+            "edge_threshold": 10,       # Standard edge threshold
+            "estimate_affine_shape": False,
+            "domain_size_pooling": False,
+            "upright": False,
+        }
+    else:
+        sift_options = {
+            "max_num_features": 8192,
+            "max_image_size": 1600,
+            "first_octave": -1,
+            "num_octaves": 4,
+            "octave_resolution": 3,
+            "peak_threshold": 0.005,
+            "edge_threshold": 20,
+        }
+    
     pycolmap.extract_features(
         database_path,
         image_dir,
-        sift_options={
-            "max_num_features": 8192,  # Much higher feature count
-            "max_image_size": 1600,    # Higher resolution
-            "first_octave": -1,        # More detailed features
-            "num_octaves": 4,
-            "octave_resolution": 3,
-            "peak_threshold": 0.005,   # More lenient peak detection
-            "edge_threshold": 20,      # More lenient edge threshold
-        },
+        sift_options=sift_options,
     )
     print(f"Finished feature extraction in {(time.time() - start_time):.2f}s.")
 
-    # Step 2: Feature Matching with correct API
-    sift_matching_options = pycolmap.SiftMatchingOptions()
-    sift_matching_options.max_ratio = 0.9
-    sift_matching_options.max_distance = 0.8
-    sift_matching_options.cross_check = True
+    # Step 2: Feature Matching
+    if use_automatic_mode:
+        # Try vocabulary tree matching first (similar to automatic_reconstructor)
+        try:
+            print("Attempting vocabulary tree matching...")
+            # Note: This requires a vocabulary tree file which may not be available
+            # Fall back to sequential matching if not available
+            matching_options = pycolmap.SiftMatchingOptions()
+            matching_options.max_ratio = 0.8
+            matching_options.max_distance = 0.7
+            matching_options.cross_check = True
+            matching_options.max_num_matches = 32768
+            
+            # Use sequential matching for forest scenes (better for continuous motion)
+            pycolmap.match_sequential(database_path, 
+                                    sift_options=matching_options,
+                                    overlap=10,  # Match with 10 neighboring frames
+                                    quadratic_overlap=True)  # Also match quadratically
+            print("Sequential matching completed.")
+            
+            # Also do exhaustive matching for loop closure
+            pycolmap.match_exhaustive(database_path, sift_options=matching_options)
+            print("Exhaustive matching completed.")
+        except Exception as e:
+            print(f"Advanced matching failed, using exhaustive: {e}")
+            sift_matching_options = pycolmap.SiftMatchingOptions()
+            sift_matching_options.max_ratio = 0.8
+            sift_matching_options.max_distance = 0.7
+            sift_matching_options.cross_check = True
+            pycolmap.match_exhaustive(database_path, sift_options=sift_matching_options)
+    else:
+        sift_matching_options = pycolmap.SiftMatchingOptions()
+        sift_matching_options.max_ratio = 0.9
+        sift_matching_options.max_distance = 0.8
+        sift_matching_options.cross_check = True
+        pycolmap.match_exhaustive(database_path, sift_options=sift_matching_options)
     
-    pycolmap.match_exhaustive(database_path, sift_options=sift_matching_options)
     print(f"Finished feature matching in {(time.time() - start_time):.2f}s.")
 
-    # Step 3: Mapping with more lenient parameters for challenging videos
+    # Step 3: Mapping with automatic_reconstructor-like parameters
     pipeline_options = pycolmap.IncrementalPipelineOptions()
-    pipeline_options.min_num_matches = 8          # Lower minimum matches
-    pipeline_options.multiple_models = True
-    pipeline_options.max_num_models = 50
-    pipeline_options.max_model_overlap = 20
-    pipeline_options.min_model_size = 3           # Allow smaller models
-    pipeline_options.extract_colors = True
-    pipeline_options.num_threads = 8
     
-    # More lenient mapper options
-    pipeline_options.mapper.init_min_num_inliers = 15    # Lower inlier threshold
-    pipeline_options.mapper.init_max_error = 12.0        # Higher error tolerance
-    pipeline_options.mapper.init_min_tri_angle = 2.0     # Lower triangulation angle
-    pipeline_options.mapper.abs_pose_min_num_inliers = 15
-    pipeline_options.mapper.abs_pose_max_error = 12.0
-    pipeline_options.mapper.filter_max_reproj_error = 8.0
-    pipeline_options.mapper.filter_min_tri_angle = 1.5
+    if use_automatic_mode:
+        # Automatic reconstructor settings for challenging scenes
+        pipeline_options.min_num_matches = 15          # Reasonable minimum
+        pipeline_options.multiple_models = True
+        pipeline_options.max_num_models = 100          # Allow more models
+        pipeline_options.max_model_overlap = 20
+        pipeline_options.min_model_size = 3
+        pipeline_options.extract_colors = True
+        pipeline_options.num_threads = -1              # Use all available threads
+        
+        # Mapper options optimized for forest/complex scenes
+        pipeline_options.mapper.init_min_num_inliers = 30    # Higher quality initialization
+        pipeline_options.mapper.init_max_error = 4.0         # Tighter error tolerance
+        pipeline_options.mapper.init_min_tri_angle = 4.0     # Better triangulation angle
+        pipeline_options.mapper.init_max_reg_trials = 3      # More initialization attempts
+        
+        pipeline_options.mapper.abs_pose_min_num_inliers = 30
+        pipeline_options.mapper.abs_pose_max_error = 8.0
+        pipeline_options.mapper.abs_pose_min_inlier_ratio = 0.25
+        pipeline_options.mapper.abs_pose_min_num_correspondences = 3
+        
+        pipeline_options.mapper.filter_max_reproj_error = 4.0
+        pipeline_options.mapper.filter_min_tri_angle = 0.5
+        
+        pipeline_options.mapper.local_ba_num_images = 6
+        pipeline_options.mapper.local_ba_max_num_iterations = 25
+        
+        pipeline_options.mapper.global_ba_refine_focal_length = True
+        pipeline_options.mapper.global_ba_refine_principal_point = False
+        pipeline_options.mapper.global_ba_refine_extra_params = False
+    else:
+        # Original settings
+        pipeline_options.min_num_matches = 8
+        pipeline_options.multiple_models = True
+        pipeline_options.max_num_models = 50
+        pipeline_options.max_model_overlap = 20
+        pipeline_options.min_model_size = 3
+        pipeline_options.extract_colors = True
+        pipeline_options.num_threads = 8
+        
+        pipeline_options.mapper.init_min_num_inliers = 15
+        pipeline_options.mapper.init_max_error = 12.0
+        pipeline_options.mapper.init_min_tri_angle = 2.0
+        pipeline_options.mapper.abs_pose_min_num_inliers = 15
+        pipeline_options.mapper.abs_pose_max_error = 12.0
+        pipeline_options.mapper.filter_max_reproj_error = 8.0
+        pipeline_options.mapper.filter_min_tri_angle = 1.5
     
     # Note: force_pinhole will be applied after reconstruction
 
@@ -638,10 +717,17 @@ def run_colmap_on_scene(scene_dir, force_pinhole=True):
     print(f"Total pipeline time: {(time.time() - start_time):.2f}s.")
 
 
-def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=1024):
+def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=1024, use_all_frames=False):
     """
     Memory-efficient helper function to process video/images, select optimal frames,
     and save them to the output_dir/images without loading all frames into memory.
+    
+    Args:
+        input_path: Path to video or image directory
+        num_ref_views: Number of reference views to select (ignored if use_all_frames=True)
+        output_dir: Output directory for processed images
+        max_size: Maximum image dimension
+        use_all_frames: If True, use all frames (or sample densely) instead of selecting optimal ones
     """
     import tempfile
     import shutil
@@ -695,19 +781,33 @@ def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=102
             print("No frames extracted or read.")
             return []
 
-        # Score frames without loading them all into memory
-        print(f"Scoring {len(frame_paths)} frames...")
-        frames_scores = preprocess_frame_paths(frame_paths)
-        
-        # Select optimal frames
-        selected_frames_indices = select_optimal_frames(
-            scores=frames_scores, k=min(num_ref_views, len(frame_paths))
-        )
-        
-        # Get paths to selected frames
-        selected_frame_paths = [frame_paths[idx] for idx in selected_frames_indices]
-        
-        print(f"Selected {len(selected_frame_paths)} optimal frames out of {len(frame_paths)}")
+        if use_all_frames:
+            # For automatic mode, use more frames for better reconstruction
+            # Sample every N frames to avoid too many redundant frames
+            total_frames = len(frame_paths)
+            if total_frames > 300:  # If too many frames, sample them
+                # Sample to get approximately 150-200 frames
+                sample_rate = max(1, total_frames // 150)
+                selected_frame_paths = frame_paths[::sample_rate]
+                print(f"Sampled {len(selected_frame_paths)} frames from {total_frames} total frames (every {sample_rate} frames)")
+            else:
+                # Use all frames if not too many
+                selected_frame_paths = frame_paths
+                print(f"Using all {len(selected_frame_paths)} frames for reconstruction")
+        else:
+            # Original behavior: Score and select optimal frames
+            print(f"Scoring {len(frame_paths)} frames...")
+            frames_scores = preprocess_frame_paths(frame_paths)
+            
+            # Select optimal frames
+            selected_frames_indices = select_optimal_frames(
+                scores=frames_scores, k=min(num_ref_views, len(frame_paths))
+            )
+            
+            # Get paths to selected frames
+            selected_frame_paths = [frame_paths[idx] for idx in selected_frames_indices]
+            
+            print(f"Selected {len(selected_frame_paths)} optimal frames out of {len(frame_paths)}")
 
         # Copy selected frames to scene directory
         copy_selected_frames_to_scene_dir(selected_frame_paths, output_dir)
@@ -788,6 +888,7 @@ def orchestrate_video_to_colmap_scene(
     num_ref_views,
     max_size=1024,
     base_work_dir="../outputs/processed_scenes",
+    use_automatic_mode=False,
 ):
     """
     Orchestrates the full video/image folder preprocessing pipeline:
@@ -799,6 +900,7 @@ def orchestrate_video_to_colmap_scene(
         num_ref_views (int): Number of reference views to select.
         max_size (int): Maximum size for width or height after resizing.
         base_work_dir (str): Base directory for temporary scene directories.
+        use_automatic_mode (bool): If True, use automatic_reconstructor-like settings.
     Returns:
         the list of selected frame image data and the path to the COLMAP processed scene directory.
         This is based on preprocess_input from gradio_demo.py.
@@ -862,7 +964,8 @@ def orchestrate_video_to_colmap_scene(
 
     # Process video/images to extract and select optimal frames
     selected_frames_data = process_input_for_colmap(
-        actual_input_path_str, num_ref_views, scene_dir, max_size
+        actual_input_path_str, num_ref_views, scene_dir, max_size, 
+        use_all_frames=use_automatic_mode
     )
     
     # Check if images were saved to scene directory
@@ -872,7 +975,7 @@ def orchestrate_video_to_colmap_scene(
         return [], None
 
     # Run COLMAP with PINHOLE camera model enforced
-    run_colmap_on_scene(scene_dir, force_pinhole=True)  # Force PINHOLE to avoid distortion
+    run_colmap_on_scene(scene_dir, force_pinhole=True, use_automatic_mode=use_automatic_mode)  # Force PINHOLE to avoid distortion
 
     print(f"COLMAP processing complete for {scene_dir}")
     return selected_frames_data, scene_dir
