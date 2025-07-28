@@ -13,7 +13,7 @@ wandb:
   tag: "debug"
 
 train:
-  gs_epochs: 1000 # number of 3dgs iterations
+  gs_epochs: 30000 # number of 3dgs iterations
   reduce_opacity: True
   no_densify: False # if True, the model will not be densified
   max_lr: True
@@ -27,8 +27,8 @@ verbose: true
 
 init_wC:
   use: True # use EDGS
-  matches_per_ref: 15_000 # number of matches per reference
-  num_refs: 18 # number of reference images
+  matches_per_ref: 20000 # number of matches per reference
+  num_refs: 180 # number of reference images
   nns_per_ref: 3 # number of nearest neighbors per reference
   scaling_factor: 0.001
   proj_err_tolerance: 0.01
