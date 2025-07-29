@@ -71,6 +71,12 @@ parser.add_argument(
     default="train",
     help="Config name to use (e.g., 'train', 'train_low_memory', 'train_very_low_memory'). Default: train",
 )
+parser.add_argument(
+    "--output_dir",
+    type=str,
+    default=None,
+    help="Directory to save EDGS training results. If not specified, creates 'models' subfolder in COLMAP scene or outputs_dir.",
+)
 args = parser.parse_args()
 # --- End argument parsing ---
 
@@ -157,9 +163,19 @@ else:
 
 # Set up paths for EDGS
 cfg.gs.dataset.source_path = scene_dir
-cfg.gs.dataset.model_path = os.path.join(scene_dir, "models")
-print(f"Set model_path to: {cfg.gs.dataset.model_path}")
-os.makedirs(cfg.gs.dataset.model_path, exist_ok=True)
+
+# Determine output directory for EDGS training results
+if args.output_dir:
+    # Use specified output directory
+    model_path = args.output_dir
+else:
+    # Default behavior: create models subfolder in scene directory
+    model_path = os.path.join(scene_dir, "models")
+
+cfg.gs.dataset.model_path = model_path
+print(f"COLMAP scene: {scene_dir}")
+print(f"EDGS output: {model_path}")
+os.makedirs(model_path, exist_ok=True)
 
 
 # # 4. Initilize model and logger

@@ -959,9 +959,15 @@ def orchestrate_video_to_colmap_scene(
 
     # Ensure base_work_dir exists
     os.makedirs(base_work_dir, exist_ok=True)
-    # Create a unique subdirectory within base_work_dir
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    scene_dir = os.path.join(base_work_dir, f"{input_name_part}_{timestamp}")
+    # Create scene directory without timestamp
+    scene_dir = os.path.join(base_work_dir, input_name_part)
+    
+    # If directory already exists, add a counter instead of timestamp
+    counter = 1
+    original_scene_dir = scene_dir
+    while os.path.exists(scene_dir):
+        scene_dir = f"{original_scene_dir}_{counter}"
+        counter += 1
 
     os.makedirs(scene_dir, exist_ok=True)
     print(f"Created scene directory for COLMAP: {scene_dir}")

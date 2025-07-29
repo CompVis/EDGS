@@ -106,10 +106,17 @@ python script/fit_model_to_scene_full.py --video_path <your mp4 video> [--output
 
 1. **Skip COLMAP reconstruction** - Use existing COLMAP results to save time:
 ```bash
-python script/fit_model_to_scene_full.py --colmap_scene_dir <existing_colmap_scene_path>
+python script/fit_model_to_scene_full.py --colmap_scene_dir <path_to_colmap_scene>
 ```
 
-2. **Memory-efficient configurations** - For GPUs with limited memory:
+2. **Separate output directory** - Keep COLMAP input and EDGS output separate:
+```bash
+python script/fit_model_to_scene_full.py \
+    --colmap_scene_dir <colmap_scene> \
+    --output_dir <edgs_output_dir>
+```
+
+3. **Memory-efficient configurations** - For GPUs with limited memory:
 ```bash
 # Low memory mode (recommended for 12GB GPUs)
 python script/fit_model_to_scene_full.py --video_path <video> --config train_low_memory
@@ -118,18 +125,26 @@ python script/fit_model_to_scene_full.py --video_path <video> --config train_low
 python script/fit_model_to_scene_full.py --video_path <video> --config train_very_low_memory
 ```
 
-3. **Automatic reconstructor mode** - Better reconstruction for complex scenes like forests:
+4. **Automatic reconstructor mode** - Better reconstruction for complex scenes like forests:
    - Automatically enabled in `fit_model_to_scene_full.py`
    - Extracts more frames (150-200 instead of just a few)
    - Uses enhanced COLMAP settings similar to `automatic_reconstructor`
    - All cameras converted to PINHOLE model for EDGS compatibility
+   - Creates clean directory names without timestamps
 
-**Example combining features:**
+**Examples:**
 ```bash
-# Use existing COLMAP scene with low memory settings
+# Process new video with low memory settings
+python script/fit_model_to_scene_full.py \
+    --video_path data/my_video.mov \
+    --config train_low_memory \
+    --output_dir outputs/my_video_edgs
+
+# Use existing COLMAP scene with custom output location
 python script/fit_model_to_scene_full.py \
     --colmap_scene_dir outputs/my_colmap_scene \
-    --config train_low_memory
+    --config train_low_memory \
+    --output_dir outputs/my_edgs_results
 ```
 
 #### Option C
