@@ -102,6 +102,36 @@ docker compose exec edgs-app bash
 python script/fit_model_to_scene_full.py --video_path <your mp4 video> [--outputs_dir <output directory>]
 ```
 
+**New features:**
+
+1. **Skip COLMAP reconstruction** - Use existing COLMAP results to save time:
+```bash
+python script/fit_model_to_scene_full.py --colmap_scene_dir <existing_colmap_scene_path>
+```
+
+2. **Memory-efficient configurations** - For GPUs with limited memory:
+```bash
+# Low memory mode (recommended for 12GB GPUs)
+python script/fit_model_to_scene_full.py --video_path <video> --config train_low_memory
+
+# Very low memory mode (for 8GB GPUs or very large scenes)  
+python script/fit_model_to_scene_full.py --video_path <video> --config train_very_low_memory
+```
+
+3. **Automatic reconstructor mode** - Better reconstruction for complex scenes like forests:
+   - Automatically enabled in `fit_model_to_scene_full.py`
+   - Extracts more frames (150-200 instead of just a few)
+   - Uses enhanced COLMAP settings similar to `automatic_reconstructor`
+   - All cameras converted to PINHOLE model for EDGS compatibility
+
+**Example combining features:**
+```bash
+# Use existing COLMAP scene with low memory settings
+python script/fit_model_to_scene_full.py \
+    --colmap_scene_dir outputs/my_colmap_scene \
+    --config train_low_memory
+```
+
 #### Option C
 Using Jupyter lab.
 ```

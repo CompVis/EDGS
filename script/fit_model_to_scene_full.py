@@ -65,11 +65,20 @@ parser.add_argument(
     default=None,
     help="Path to existing COLMAP scene directory. If provided, skips video processing and uses this scene directly.",
 )
+parser.add_argument(
+    "--config",
+    type=str,
+    default="train",
+    help="Config name to use (e.g., 'train', 'train_low_memory', 'train_very_low_memory'). Default: train",
+)
 args = parser.parse_args()
 # --- End argument parsing ---
 
 with initialize(config_path="../configs", version_base="1.1"):
-    cfg = compose(config_name="train")
+    cfg = compose(config_name=args.config)
+    print(f"\n📋 Using config: {args.config}")
+    if "low_memory" in args.config:
+        print("💾 Low memory mode enabled - densification disabled, reduced batch size")
 
 SAME_WITH_GRADIO_DEMO = False
 if SAME_WITH_GRADIO_DEMO:
@@ -86,6 +95,15 @@ if SAME_WITH_GRADIO_DEMO:
     cfg.init_wC.num_refs = 10  # Use more reference views for better reconstruction
     cfg.init_wC.matches_per_ref = 20000
 
+# Print memory usage info if in low memory mode
+if "low_memory" in args.config:
+    print(f"\n🔧 Memory-saving settings:")
+    print(f"  - Batch size: {cfg.gs.opt.batch_size}")
+    print(f"  - Densification: {'Disabled' if cfg.train.no_densify else 'Enabled'}")
+    print(f"  - Reference images: {cfg.init_wC.num_refs}")
+    print(f"  - Matches per ref: {cfg.init_wC.matches_per_ref}")
+    
+print("\n" + "="*50)
 print(OmegaConf.to_yaml(cfg))
 
 
