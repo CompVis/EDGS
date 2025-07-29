@@ -786,18 +786,62 @@ def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=102
             return []
 
         if use_all_frames:
-            # For automatic mode, use more frames for better reconstruction
-            # Sample every N frames to avoid too many redundant frames
+            # For automatic mode, extract frames at consistent rate to ensure good overlap
             total_frames = len(frame_paths)
-            if total_frames > 300:  # If too many frames, sample them
-                # Sample to get approximately 150-200 frames
-                sample_rate = max(1, total_frames // 150)
-                selected_frame_paths = frame_paths[::sample_rate]
-                print(f"Sampled {len(selected_frame_paths)} frames from {total_frames} total frames (every {sample_rate} frames)")
-            else:
-                # Use all frames if not too many
-                selected_frame_paths = frame_paths
-                print(f"Using all {len(selected_frame_paths)} frames for reconstruction")
+            
+            # Try to get video duration to calculate fps-based sampling
+            try:
+                # Get video info using ffprobe
+                if isinstance(input_path, (str, os.PathLike)) and not os.path.isdir(input_path):
+                    video_path = str(input_path)
+                elif hasattr(input_path, "name"):
+                    video_path = input_path.name
+                else:
+                    video_path = None
+                    
+                if video_path and os.path.exists(video_path):
+                    import subprocess
+                    result = subprocess.run([
+                        'ffprobe', '-v', 'quiet', '-show_entries', 'format=duration',
+                        '-of', 'csv=p=0', video_path
+                    ], capture_output=True, text=True)
+                    
+                    if result.returncode == 0 and result.stdout.strip():
+                        duration = float(result.stdout.strip())
+                        original_fps = total_frames / duration
+                        
+                        # Target at least 1 fps, but allow higher rates for short videos
+                        target_fps = max(1.0, min(original_fps, 2.0))  # Between 1-2 fps
+                        target_frames = int(duration * target_fps)
+                        
+                        if target_frames < total_frames:
+                            # Calculate step size to maintain temporal consistency
+                            step = total_frames / target_frames
+                            selected_indices = [int(i * step) for i in range(target_frames)]
+                            selected_frame_paths = [frame_paths[i] for i in selected_indices]
+                            print(f"Extracted {len(selected_frame_paths)} frames at {target_fps:.1f} fps from {duration:.1f}s video (original: {original_fps:.1f} fps)")
+                        else:
+                            selected_frame_paths = frame_paths
+                            print(f"Using all {len(selected_frame_paths)} frames (short video or low fps)")
+                    else:
+                        raise Exception("Could not get duration")
+                else:
+                    raise Exception("No video file path available")
+                    
+            except Exception as e:
+                print(f"Could not determine video duration ({e}), using frame-based sampling...")
+                # Fallback: limit frames but maintain better temporal distribution
+                if total_frames > 300:
+                    # Instead of sampling every N frames, take a consecutive sequence
+                    # from the middle portion to ensure good overlap
+                    max_frames = 200  # Target frame count
+                    start_idx = max(0, (total_frames - max_frames) // 2)
+                    end_idx = min(total_frames, start_idx + max_frames)
+                    selected_frame_paths = frame_paths[start_idx:end_idx]
+                    print(f"Selected {len(selected_frame_paths)} consecutive frames from middle section (frames {start_idx}-{end_idx} of {total_frames})")
+                else:
+                    selected_frame_paths = frame_paths
+                    print(f"Using all {len(selected_frame_paths)} frames for reconstruction")
         else:
             # Original behavior: Score and select optimal frames
             print(f"Scoring {len(frame_paths)} frames...")
