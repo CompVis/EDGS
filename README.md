@@ -99,10 +99,10 @@ python script/gradio_demo.py --port 7862
 From command line.
 ```
 docker compose exec edgs-app bash
-python script/fit_model_to_scene_full.py --video_path <your mp4 video> [--outputs_dir <output directory>]
+python script/fit_model_to_scene_full.py --video_path <your mp4 video> [--output_dir <EDGS output directory>]
 ```
 
-**New features:**
+**Additinal features:**
 
 1. **Skip COLMAP reconstruction** - Use existing COLMAP results to save time:
 ```bash
@@ -124,13 +124,6 @@ python script/fit_model_to_scene_full.py --video_path <video> --config train_low
 # Very low memory mode (for 8GB GPUs or very large scenes)  
 python script/fit_model_to_scene_full.py --video_path <video> --config train_very_low_memory
 ```
-
-4. **Automatic reconstructor mode** - Better reconstruction for complex scenes like forests:
-   - Automatically enabled in `fit_model_to_scene_full.py`
-   - Extracts more frames (150-200 instead of just a few)
-   - Uses enhanced COLMAP settings similar to `automatic_reconstructor`
-   - All cameras converted to PINHOLE model for EDGS compatibility
-   - Creates clean directory names without timestamps
 
 **Examples:**
 ```bash
