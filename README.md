@@ -39,7 +39,7 @@ Renderings become <strong>nearly indistinguishable from ground truth after only 
 - [🚀 Quickstart](#sec-quickstart)
 - [🛠️ Installation](#sec-install)
 - [📦 Data](#sec-data)
-
+- [🎬 Video Processing Improvements](#video-processing-improvements)
 - [🏋️ Training](#sec-training)
 - [🏗️ Reusing Our Model](#sec-reuse)
 - [📄 Citation](#sec-citation)
@@ -102,6 +102,8 @@ docker compose exec edgs-app bash
 python script/fit_model_to_scene_full.py --video_path <your mp4 video> [--output_dir <EDGS output directory>]
 ```
 
+> **🔧 Enhanced Video Processing**: The video processing pipeline now includes improved frame extraction with ffmpeg support, automatic handling of problematic video formats, and optimized COLMAP settings to ensure single unified reconstructions instead of fragmented models.
+
 **Additinal features:**
 
 1. **Skip COLMAP reconstruction** - Use existing COLMAP results to save time:
@@ -125,13 +127,40 @@ python script/fit_model_to_scene_full.py --video_path <video> --config train_low
 python script/fit_model_to_scene_full.py --video_path <video> --config train_very_low_memory
 ```
 
+4. **Frame extraction control** - Control video sampling rate for reconstruction quality:
+```bash
+# Extract frames at 3 fps (default, good balance)
+python script/fit_model_to_scene_full.py --video_path <video> --target_fps 3.0
+
+# Higher density extraction for complex scenes (4-5 fps)
+python script/fit_model_to_scene_full.py --video_path <video> --target_fps 5.0
+
+# Lower density for long videos or memory constraints (1-2 fps)
+python script/fit_model_to_scene_full.py --video_path <video> --target_fps 1.5
+```
+
 **Examples:**
 ```bash
-# Process new video with low memory settings
+# Process new video with low memory settings and custom frame rate
 python script/fit_model_to_scene_full.py \
     --video_path data/my_video.mov \
     --config train_low_memory \
+    --target_fps 3.0 \
     --output_dir outputs/my_video_edgs
+
+# High-quality processing for complex scenes
+python script/fit_model_to_scene_full.py \
+    --video_path data/forest_scene.mp4 \
+    --config train_low_memory \
+    --target_fps 4.0 \
+    --output_dir outputs/forest_high_quality
+
+# Process problematic/4K videos with conservative settings
+python script/fit_model_to_scene_full.py \
+    --video_path data/4k_drone_video.MP4 \
+    --config train_very_low_memory \
+    --target_fps 2.0 \
+    --output_dir outputs/drone_4k
 
 # Use existing COLMAP scene with custom output location
 python script/fit_model_to_scene_full.py \
@@ -179,6 +208,23 @@ Then run training command as described below section.
 Nerf synthetic format is also acceptable. 
 
 You can also use functions provided in our code to convert a collection of images or a sinlge video into a desired format. However, this may requre tweaking and processing time can be large for large collection of images with little overlap.
+
+## 🎬 Video Processing Improvements
+
+Recent enhancements to the video processing pipeline provide better handling of various video formats and improved reconstruction quality:
+
+### **Key Features:**
+- **Robust Frame Extraction**: Uses ffmpeg with OpenCV fallback for reliable processing of problematic video formats
+- **Single Reconstruction Guarantee**: Optimized COLMAP settings prevent fragmented reconstructions (multiple sparse/0, sparse/1, etc.)
+- **Configurable Frame Density**: Control extraction rate with `--target_fps` parameter for quality vs. performance trade-offs
+- **High-Resolution Support**: Automatic handling of 4K and high-resolution videos with memory management
+- **Corrupted Video Recovery**: Handles videos with incorrect metadata or codec issues
+
+### **Best Practices:**
+- **Forest/Complex Scenes**: Use `--target_fps 4.0` for better overlap
+- **Long Videos**: Use `--target_fps 1.5` to limit frame count
+- **4K/High-Res Videos**: Use `--config train_very_low_memory --target_fps 2.0`
+- **Standard Processing**: Default `--target_fps 3.0` works well for most cases
 
 <a id="sec-training"></a>
 ## 🏋️ Training
