@@ -864,9 +864,6 @@ def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=102
                     
                 selected_frame_paths = frame_paths[::step]
                 print(f"Sampled {len(selected_frame_paths)} frames (every {step} frames from {total_frames} total, targeting ~{target_fps} fps)")
-                else:
-                    selected_frame_paths = frame_paths
-                    print(f"Using all {len(selected_frame_paths)} frames for reconstruction")
         else:
             # Original behavior: Score and select optimal frames
             print(f"Scoring {len(frame_paths)} frames...")
