@@ -8,7 +8,7 @@ defaults:
 # Disable densification to avoid memory spikes
 train:
   no_densify: True  # EDGS works well without densification
-  gs_epochs: 30000  # Keep full training iterations for quality
+  gs_epochs: 60000  # Keep full training iterations for quality
 
 # Override Gaussian Splatting optimization settings for lower memory
 gs:

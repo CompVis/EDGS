@@ -45,7 +45,7 @@ def resize_max_side(frame, max_size):
     return frame
 
 
-def extract_video_frames_to_disk(video_input, output_dir, k=1, max_size=1024, use_all_frames=False):
+def extract_video_frames_to_disk(video_input, output_dir, k=1, max_size=1024, use_all_frames=False, target_fps=3.0):
     """
     Extracts every k-th frame from a video using ffmpeg, saves to disk to avoid memory overflow.
 
@@ -109,14 +109,23 @@ def extract_video_frames_to_disk(video_input, output_dir, k=1, max_size=1024, us
             '-show_entries', 'stream=nb_frames', '-of', 'csv=p=0', video_path
         ], capture_output=True, text=True, check=True)
         
-        total_frames = int(result.stdout.strip())
-        print(f"Total frames in video: {total_frames}")
+        frame_count_str = result.stdout.strip()
+        if frame_count_str and frame_count_str != 'N/A':
+            total_frames = int(frame_count_str)
+            print(f"Total frames in video: {total_frames}")
+        else:
+            print("Could not determine frame count, using default extraction")
+            total_frames = 1000  # Default fallback
         
-        # Extract every k-th frame using ffmpeg with scaling
+        # Extract frames at target fps using ffmpeg with scaling
+        scale_filter = f"scale='min({max_size},iw)':'min({max_size},ih)':force_original_aspect_ratio=decrease"
+        fps_filter = f"fps={target_fps}"
+        
         ffmpeg_cmd = [
             'ffmpeg', '-i', video_path, '-y',
-            '-vf', f'select=not(mod(n\\,{k})),scale=w=min({max_size}\\,iw):h=min({max_size}\\,ih):force_original_aspect_ratio=decrease',
+            '-vf', f'{fps_filter},{scale_filter}',
             '-q:v', '2',  # High quality
+            '-frames:v', '1000',  # Limit to 1000 frames max
             os.path.join(output_dir, 'frame_%08d.jpg')
         ]
         
@@ -134,13 +143,13 @@ def extract_video_frames_to_disk(video_input, output_dir, k=1, max_size=1024, us
     except subprocess.CalledProcessError as e:
         print(f"ffmpeg failed: {e}")
         # Fallback to opencv if ffmpeg fails
-        return extract_video_frames_fallback(video_path, output_dir, k, max_size)
+        return extract_video_frames_fallback(video_path, output_dir, k, max_size, target_fps)
     except FileNotFoundError:
         print("ffmpeg not found, using opencv fallback")
-        return extract_video_frames_fallback(video_path, output_dir, k, max_size)
+        return extract_video_frames_fallback(video_path, output_dir, k, max_size, target_fps)
 
 
-def extract_video_frames_fallback(video_path, output_dir, k=1, max_size=1024):
+def extract_video_frames_fallback(video_path, output_dir, k=1, max_size=1024, target_fps=3.0):
     """
     Fallback method using opencv, but saves frames to disk instead of memory.
     """
@@ -149,17 +158,54 @@ def extract_video_frames_fallback(video_path, output_dir, k=1, max_size=1024):
         raise ValueError(f"Error: Could not open video {video_path}.")
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    video_fps = cap.get(cv2.CAP_PROP_FPS)
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     frame_count = 0
     frame_paths = []
+    
+    print(f"Video info: {width}x{height}, {video_fps:.1f} fps, {total_frames} frames reported")
+    
+    # Handle videos with incorrect frame count or very high resolution
+    if total_frames > 1000000:  # If more than 1M frames, likely incorrect
+        print(f"Warning: Video reports {total_frames} frames, which seems incorrect. Limiting extraction.")
+        max_frames_to_extract = 1000  # Extract max 1k frames for high-res videos
+    else:
+        max_frames_to_extract = min(total_frames, 5000)  # Limit to 5k frames max
+        
+    # Additional limit for high resolution videos to avoid memory issues
+    if width * height > 1920 * 1080:  # If higher than 1080p
+        max_frames_to_extract = min(max_frames_to_extract, 500)  # Much more conservative
+        max_size = min(max_size, 512)  # Reduce output size for 4K videos
+        print(f"High resolution video detected ({width}x{height}), limiting to {max_frames_to_extract} frames, output size {max_size}px")
+    
+    # Calculate frame interval based on target fps
+    if video_fps > 0:
+        frame_interval = max(1, int(video_fps / target_fps))
+        print(f"Video FPS: {video_fps:.1f}, Target FPS: {target_fps}, Frame interval: every {frame_interval} frames")
+    else:
+        frame_interval = k  # Fallback to provided k value
 
     os.makedirs(output_dir, exist_ok=True)
 
-    with tqdm(total=total_frames // k, desc="Extracting Video Frames", unit="frame") as pbar:
-        while True:
+    with tqdm(total=min(total_frames, max_frames_to_extract) // frame_interval, desc="Extracting Video Frames", unit="frame") as pbar:
+        consecutive_failures = 0
+        while frame_count < max_frames_to_extract and consecutive_failures < 10:
             ret, frame = cap.read()
             if not ret:
-                break
-            if frame_count % k == 0:
+                consecutive_failures += 1
+                if consecutive_failures >= 10:
+                    print(f"Too many consecutive frame read failures, stopping extraction")
+                    break
+                # Skip some frames to try to get past corrupted sections
+                if consecutive_failures > 3:
+                    for _ in range(10):  # Skip 10 frames
+                        cap.read()
+                    frame_count += 10
+                continue
+            else:
+                consecutive_failures = 0  # Reset on successful read
+            if frame_count % frame_interval == 0:
                 # Resize frame
                 h, w = frame.shape[:2]
                 scale = max(h, w) / max_size
@@ -790,7 +836,8 @@ def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=102
                     video_input=input_path, 
                     output_dir=temp_frames_dir, 
                     max_size=max_size,
-                    use_all_frames=use_all_frames
+                    use_all_frames=use_all_frames,
+                    target_fps=target_fps
                 )
         elif hasattr(input_path, "name"):  # File-like object (e.g., from Gradio upload)
             print(f"Processing uploaded video file: {input_path.name}")
@@ -798,7 +845,8 @@ def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=102
                 video_input=input_path, 
                 output_dir=temp_frames_dir, 
                 max_size=max_size,
-                use_all_frames=use_all_frames
+                use_all_frames=use_all_frames,
+                target_fps=target_fps
             )
         else:
             raise ValueError(f"Unsupported input_path type: {type(input_path)}")
