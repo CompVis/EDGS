@@ -77,6 +77,12 @@ parser.add_argument(
     default=None,
     help="Directory to save EDGS training results. If not specified, creates 'models' subfolder in COLMAP scene or outputs_dir.",
 )
+parser.add_argument(
+    "--target_fps",
+    type=float,
+    default=3.0,
+    help="Target frames per second for video extraction. Higher values extract more frames. Default: 3.0",
+)
 args = parser.parse_args()
 # --- End argument parsing ---
 
@@ -153,6 +159,7 @@ else:
             max_size=1024,  # Or make it an arg
             base_work_dir=args.outputs_dir,  # Assuming you added this arg
             use_automatic_mode=True,  # Use automatic reconstructor-like settings
+            target_fps=args.target_fps,  # Pass target FPS for frame extraction
         )
         if scene_dir is None:
             print(f"Failed to process video {args.video_path}. Exiting.")

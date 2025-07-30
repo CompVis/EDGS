@@ -45,7 +45,7 @@ def resize_max_side(frame, max_size):
     return frame
 
 
-def extract_video_frames_to_disk(video_input, output_dir, k=1, max_size=1024):
+def extract_video_frames_to_disk(video_input, output_dir, k=1, max_size=1024, use_all_frames=False):
     """
     Extracts every k-th frame from a video using ffmpeg, saves to disk to avoid memory overflow.
 
@@ -548,7 +548,7 @@ def run_colmap_on_scene(scene_dir, force_pinhole=True, use_automatic_mode=False)
             # Use sequential matching for forest scenes (better for continuous motion)
             pycolmap.match_sequential(database_path, 
                                     sift_options=matching_options,
-                                    overlap=10,  # Match with 10 neighboring frames
+                                    overlap=30,  # Match with 30 neighboring frames for maximum overlap
                                     quadratic_overlap=True)  # Also match quadratically
             print("Sequential matching completed.")
             
@@ -575,28 +575,28 @@ def run_colmap_on_scene(scene_dir, force_pinhole=True, use_automatic_mode=False)
     pipeline_options = pycolmap.IncrementalPipelineOptions()
     
     if use_automatic_mode:
-        # Automatic reconstructor settings for challenging scenes
-        pipeline_options.min_num_matches = 15          # Reasonable minimum
-        pipeline_options.multiple_models = True
-        pipeline_options.max_num_models = 100          # Allow more models
-        pipeline_options.max_model_overlap = 20
-        pipeline_options.min_model_size = 3
+        # Force single reconstruction for forest scenes
+        pipeline_options.min_num_matches = 5           # Very low threshold to connect everything
+        pipeline_options.multiple_models = False        # Disable multiple models entirely!
+        pipeline_options.max_num_models = 1            # Force single model
+        pipeline_options.max_model_overlap = 100       # Maximum overlap
+        pipeline_options.min_model_size = 50           # Require large component
         pipeline_options.extract_colors = True
         pipeline_options.num_threads = -1              # Use all available threads
         
         # Mapper options optimized for forest/complex scenes
-        pipeline_options.mapper.init_min_num_inliers = 30    # Higher quality initialization
-        pipeline_options.mapper.init_max_error = 4.0         # Tighter error tolerance
-        pipeline_options.mapper.init_min_tri_angle = 4.0     # Better triangulation angle
+        pipeline_options.mapper.init_min_num_inliers = 15    # Lower threshold for connection
+        pipeline_options.mapper.init_max_error = 8.0         # More lenient error tolerance
+        pipeline_options.mapper.init_min_tri_angle = 2.0     # More lenient triangulation angle
         # pipeline_options.mapper.init_max_reg_trials = 3      # Not available in this pycolmap version
         
-        pipeline_options.mapper.abs_pose_min_num_inliers = 30
-        pipeline_options.mapper.abs_pose_max_error = 8.0
-        pipeline_options.mapper.abs_pose_min_inlier_ratio = 0.25
+        pipeline_options.mapper.abs_pose_min_num_inliers = 15    # More lenient for connection
+        pipeline_options.mapper.abs_pose_max_error = 12.0       # More lenient error
+        pipeline_options.mapper.abs_pose_min_inlier_ratio = 0.15 # Lower ratio requirement
         # pipeline_options.mapper.abs_pose_min_num_correspondences = 3  # Not available in this pycolmap version
         
-        pipeline_options.mapper.filter_max_reproj_error = 4.0
-        pipeline_options.mapper.filter_min_tri_angle = 0.5
+        pipeline_options.mapper.filter_max_reproj_error = 8.0    # More lenient filtering
+        pipeline_options.mapper.filter_min_tri_angle = 0.25     # More lenient angle
         
         # pipeline_options.mapper.local_ba_num_images = 6  # May not be available
         # pipeline_options.mapper.local_ba_max_num_iterations = 25  # May not be available
@@ -659,33 +659,53 @@ def run_colmap_on_scene(scene_dir, force_pinhole=True, use_automatic_mode=False)
             print(f"❌ Both reconstruction attempts failed: {e2}")
             raise RuntimeError("COLMAP reconstruction failed. The video might have insufficient overlap or features.")
 
-    # Step 4: Check if reconstruction was successful
-    recon_path = os.path.join(sparse_path, "0")
-    if not os.path.exists(recon_path):
-        # Check for other reconstruction indices
-        reconstructions_found = []
-        for i in range(10):  # Check indices 0-9
-            alt_path = os.path.join(sparse_path, str(i))
-            if os.path.exists(alt_path) and any(os.path.exists(os.path.join(alt_path, f)) 
-                                             for f in ["cameras.bin", "images.bin", "points3D.bin"]):
-                reconstructions_found.append(i)
-        
-        if reconstructions_found:
-            # Use the largest reconstruction
-            best_idx = max(reconstructions_found)
-            recon_path = os.path.join(sparse_path, str(best_idx))
-            print(f"ℹ️  Using reconstruction {best_idx} instead of 0")
-            
-            # Move to index 0 for compatibility
-            target_path = os.path.join(sparse_path, "0")
-            if not os.path.exists(target_path):
+    # Step 4: Merge multiple reconstructions if they exist
+    target_recon_path = os.path.join(sparse_path, "0")
+    
+    # Find all reconstructions
+    reconstructions_found = []
+    for i in range(100):  # Check more reconstruction indices
+        alt_path = os.path.join(sparse_path, str(i))
+        if os.path.exists(alt_path) and any(os.path.exists(os.path.join(alt_path, f)) 
+                                         for f in ["cameras.bin", "images.bin", "points3D.bin"]):
+            reconstructions_found.append((i, alt_path))
+    
+    if not reconstructions_found:
+        print("❌ COLMAP reconstruction failed - creating minimal fallback reconstruction")
+        return create_fallback_reconstruction(image_dir, sparse_path)
+    
+    print(f"🔍 Found {len(reconstructions_found)} reconstructions: {[i for i, _ in reconstructions_found]}")
+    
+    if len(reconstructions_found) == 1:
+        # Single reconstruction - just ensure it's at index 0
+        idx, recon_path = reconstructions_found[0]
+        if idx != 0:
+            import shutil
+            if os.path.exists(target_recon_path):
+                shutil.rmtree(target_recon_path)
+            shutil.move(recon_path, target_recon_path)
+            print(f"📁 Moved single reconstruction from {idx} to 0")
+        recon_path = target_recon_path
+    else:
+        # Multiple reconstructions - try to merge them
+        print("🔄 Attempting to merge multiple reconstructions...")
+        try:
+            merged_reconstruction = merge_colmap_reconstructions(reconstructions_found, sparse_path)
+            merged_reconstruction.write(target_recon_path)
+            print(f"✅ Successfully merged {len(reconstructions_found)} reconstructions")
+            recon_path = target_recon_path
+        except Exception as e:
+            print(f"⚠️  Failed to merge reconstructions: {e}")
+            # Fall back to using the largest reconstruction
+            largest_idx, largest_path = max(reconstructions_found, 
+                                          key=lambda x: get_reconstruction_size(x[1]))
+            print(f"📊 Using largest reconstruction: {largest_idx}")
+            if largest_idx != 0:
                 import shutil
-                shutil.move(recon_path, target_path)
-                recon_path = target_path
-                print(f"📁 Moved reconstruction to sparse/0/")
-        else:
-            print("❌ COLMAP reconstruction failed - creating minimal fallback reconstruction")
-            return create_fallback_reconstruction(image_dir, sparse_path)
+                if os.path.exists(target_recon_path):
+                    shutil.rmtree(target_recon_path)
+                shutil.move(largest_path, target_recon_path)
+            recon_path = target_recon_path
 
     # Step 5: Convert cameras to PINHOLE if needed
     if os.path.exists(recon_path):
@@ -721,7 +741,7 @@ def run_colmap_on_scene(scene_dir, force_pinhole=True, use_automatic_mode=False)
     print(f"Total pipeline time: {(time.time() - start_time):.2f}s.")
 
 
-def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=1024, use_all_frames=False):
+def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=1024, use_all_frames=False, target_fps=3.0):
     """
     Memory-efficient helper function to process video/images, select optimal frames,
     and save them to the output_dir/images without loading all frames into memory.
@@ -769,14 +789,16 @@ def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=102
                 frame_paths = extract_video_frames_to_disk(
                     video_input=input_path, 
                     output_dir=temp_frames_dir, 
-                    max_size=max_size
+                    max_size=max_size,
+                    use_all_frames=use_all_frames
                 )
         elif hasattr(input_path, "name"):  # File-like object (e.g., from Gradio upload)
             print(f"Processing uploaded video file: {input_path.name}")
             frame_paths = extract_video_frames_to_disk(
                 video_input=input_path, 
                 output_dir=temp_frames_dir, 
-                max_size=max_size
+                max_size=max_size,
+                use_all_frames=use_all_frames
             )
         else:
             raise ValueError(f"Unsupported input_path type: {type(input_path)}")
@@ -810,16 +832,16 @@ def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=102
                         duration = float(result.stdout.strip())
                         original_fps = total_frames / duration
                         
-                        # Target at least 1 fps, but allow higher rates for short videos
-                        target_fps = max(1.0, min(original_fps, 2.0))  # Between 1-2 fps
-                        target_frames = int(duration * target_fps)
+                        # Use the specified target_fps for frame extraction
+                        actual_target_fps = min(original_fps, target_fps)  # Don't exceed original fps
+                        target_frames = int(duration * actual_target_fps)
                         
                         if target_frames < total_frames:
                             # Calculate step size to maintain temporal consistency
                             step = total_frames / target_frames
                             selected_indices = [int(i * step) for i in range(target_frames)]
                             selected_frame_paths = [frame_paths[i] for i in selected_indices]
-                            print(f"Extracted {len(selected_frame_paths)} frames at {target_fps:.1f} fps from {duration:.1f}s video (original: {original_fps:.1f} fps)")
+                            print(f"Extracted {len(selected_frame_paths)} frames at {actual_target_fps:.1f} fps from {duration:.1f}s video (original: {original_fps:.1f} fps)")
                         else:
                             selected_frame_paths = frame_paths
                             print(f"Using all {len(selected_frame_paths)} frames (short video or low fps)")
@@ -830,15 +852,18 @@ def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=102
                     
             except Exception as e:
                 print(f"Could not determine video duration ({e}), using frame-based sampling...")
-                # Fallback: limit frames but maintain better temporal distribution
-                if total_frames > 300:
-                    # Instead of sampling every N frames, take a consecutive sequence
-                    # from the middle portion to ensure good overlap
-                    max_frames = 200  # Target frame count
-                    start_idx = max(0, (total_frames - max_frames) // 2)
-                    end_idx = min(total_frames, start_idx + max_frames)
-                    selected_frame_paths = frame_paths[start_idx:end_idx]
-                    print(f"Selected {len(selected_frame_paths)} consecutive frames from middle section (frames {start_idx}-{end_idx} of {total_frames})")
+                # Fallback: sample more densely to ensure overlap
+                # Assume 30fps video, extract frames to approximate target_fps
+                assumed_fps = 30.0
+                step = max(1, int(assumed_fps / target_fps))
+                
+                # But limit total frames to avoid memory issues
+                max_frames = 500  # Maximum frames to process
+                if len(frame_paths[::step]) > max_frames:
+                    step = max(1, total_frames // max_frames)
+                    
+                selected_frame_paths = frame_paths[::step]
+                print(f"Sampled {len(selected_frame_paths)} frames (every {step} frames from {total_frames} total, targeting ~{target_fps} fps)")
                 else:
                     selected_frame_paths = frame_paths
                     print(f"Using all {len(selected_frame_paths)} frames for reconstruction")
@@ -937,6 +962,7 @@ def orchestrate_video_to_colmap_scene(
     max_size=1024,
     base_work_dir="../outputs/processed_scenes",
     use_automatic_mode=False,
+    target_fps=3.0,
 ):
     """
     Orchestrates the full video/image folder preprocessing pipeline:
@@ -1019,7 +1045,7 @@ def orchestrate_video_to_colmap_scene(
     # Process video/images to extract and select optimal frames
     selected_frames_data = process_input_for_colmap(
         actual_input_path_str, num_ref_views, scene_dir, max_size, 
-        use_all_frames=use_automatic_mode
+        use_all_frames=use_automatic_mode, target_fps=target_fps
     )
     
     # Check if images were saved to scene directory
@@ -1033,3 +1059,106 @@ def orchestrate_video_to_colmap_scene(
 
     print(f"COLMAP processing complete for {scene_dir}")
     return selected_frames_data, scene_dir
+
+
+def get_reconstruction_size(recon_path):
+    """Get the size (number of images) of a reconstruction."""
+    try:
+        reconstruction = pycolmap.Reconstruction(recon_path)
+        return len(reconstruction.images)
+    except:
+        return 0
+
+
+def merge_colmap_reconstructions(reconstructions_list, sparse_path):
+    """
+    Merge multiple COLMAP reconstructions into a single one.
+    
+    Args:
+        reconstructions_list: List of (index, path) tuples
+        sparse_path: Path to sparse directory
+    
+    Returns:
+        Merged pycolmap.Reconstruction object
+    """
+    print(f"🔄 Merging {len(reconstructions_list)} reconstructions...")
+    
+    # Load all reconstructions
+    reconstructions = []
+    total_images = 0
+    total_points = 0
+    
+    for idx, recon_path in reconstructions_list:
+        try:
+            recon = pycolmap.Reconstruction(recon_path)
+            if len(recon.images) > 0:  # Only include non-empty reconstructions
+                reconstructions.append((idx, recon))
+                total_images += len(recon.images)
+                total_points += len(recon.points3D)
+                print(f"  Reconstruction {idx}: {len(recon.images)} images, {len(recon.points3D)} points")
+        except Exception as e:
+            print(f"  ⚠️  Could not load reconstruction {idx}: {e}")
+    
+    if not reconstructions:
+        raise RuntimeError("No valid reconstructions to merge")
+    
+    if len(reconstructions) == 1:
+        print(f"Only one valid reconstruction found, using it directly")
+        return reconstructions[0][1]
+    
+    # Start with the largest reconstruction as base
+    base_idx, base_recon = max(reconstructions, key=lambda x: len(x[1].images))
+    print(f"📊 Using reconstruction {base_idx} as base ({len(base_recon.images)} images)")
+    
+    # Create a new merged reconstruction starting from the base
+    merged = pycolmap.Reconstruction()
+    
+    # Copy cameras from base reconstruction
+    for camera_id, camera in base_recon.cameras.items():
+        merged.add_camera(camera)
+    
+    # Keep track of image names to avoid duplicates
+    added_image_names = set()
+    image_id_offset = 0
+    point_id_offset = 0
+    
+    # Add all reconstructions
+    for recon_idx, recon in reconstructions:
+        print(f"  Adding reconstruction {recon_idx}...")
+        
+        # Add cameras (skip if already exists)
+        for camera_id, camera in recon.cameras.items():
+            if camera_id not in merged.cameras:
+                merged.add_camera(camera)
+        
+        # Add images with ID offset to avoid conflicts
+        for image_id, image in recon.images.items():
+            if image.name not in added_image_names:
+                new_image_id = image_id + image_id_offset
+                # Create new image with offset ID
+                new_image = pycolmap.Image(
+                    id=new_image_id,
+                    name=image.name,
+                    camera_id=image.camera_id,
+                    qvec=image.qvec,
+                    tvec=image.tvec
+                )
+                merged.add_image(new_image)
+                added_image_names.add(image.name)
+            else:
+                print(f"    Skipping duplicate image: {image.name}")
+        
+        # Add 3D points with ID offset
+        for point_id, point in recon.points3D.items():
+            new_point_id = point_id + point_id_offset
+            merged.add_point3D(new_point_id, point.xyz, point.track, point.color)
+        
+        # Update offsets for next reconstruction
+        if recon.images:
+            image_id_offset += max(recon.images.keys()) + 1
+        if recon.points3D:
+            point_id_offset += max(recon.points3D.keys()) + 1
+    
+    print(f"✅ Merged reconstruction: {len(merged.images)} images, {len(merged.points3D)} points")
+    
+    return merged
