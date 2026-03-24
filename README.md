@@ -1,4 +1,4 @@
-<h1 align="center">EDGS: Eliminating Densification for Efficient Convergence of 3DGS</h2>
+<h1 align="center">EDGS: Eliminating Densification for Efficient Convergence of 3DGS (CVPR 2026) </h2>
 
 <p align="center">
   <a href="https://www.linkedin.com/in/dmitry-kotovenko-dl/">Dmytro Kotovenko</a><sup>*</sup> ·
@@ -33,7 +33,9 @@ Renderings become <strong>nearly indistinguishable from ground truth after only 
   <img src="assets/video_fruits_our_optimization.gif" width="480" alt="3D Reconstruction Demo">
 </p>
 
-
+## 📢 News
+2026-03-25: Updated training code will be released soon.<br>
+2026-03-02: The paper has been accepted to CVPR 2026.<br>
 
 ## 📚 Table of Contents
 - [🚀 Quickstart](#sec-quickstart)
