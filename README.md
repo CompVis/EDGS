@@ -216,14 +216,13 @@ source.corr_init.init_gaussians_with_corr(...)
 <a id="sec-citation"></a>
 ## 📄 Citation
 ```bibtex
-@misc{kotovenko2025edgseliminatingdensificationefficient,
-      title={EDGS: Eliminating Densification for Efficient Convergence of 3DGS}, 
-      author={Dmytro Kotovenko and Olga Grebenkova and Björn Ommer},
-      year={2025},
-      eprint={2504.13204},
-      archivePrefix={arXiv},
-      primaryClass={cs.GR},
-      url={https://arxiv.org/abs/2504.13204}, 
+@InProceedings{Kotovenko_2026_CVPR,
+    author    = {Kotovenko, Dmytro and Grebenkova, Olga and Ommer, Bj\"orn},
+    title     = {EDGS: Eliminating Densification for Efficient Convergence of 3DGS},
+    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    month     = {June},
+    year      = {2026},
+    pages     = {41065-41076}
 }
 ```
 ---
