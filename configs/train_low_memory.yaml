@@ -1,0 +1,31 @@
+defaults:
+  - train
+  - _self_
+
+# Low memory configuration for EDGS
+# This config reduces memory usage while maintaining quality
+
+# Disable densification to avoid memory spikes
+train:
+  no_densify: True  # EDGS works well without densification
+  gs_epochs: 60000  # Keep full training iterations for quality
+
+# Override Gaussian Splatting optimization settings for lower memory
+gs:
+  opt:
+    # Reduce batch size to use less memory per iteration
+    batch_size: 16  # Reduced from 64
+    
+    # Increase opacity reset interval to avoid frequent memory allocations
+    opacity_reset_interval: 1_000_000  # Effectively disable opacity reset
+    
+    # Keep densification settings but they won't be used due to no_densify
+    densify_from_iter: 500
+    densify_until_iter: 15000
+    densify_grad_threshold: 0.0002
+    
+# Keep high quality initialization settings
+init_wC:
+  matches_per_ref: 15000  # Slightly reduced from 20000 for memory
+  num_refs: 180  # Reduced from 360 but still high quality
+  nns_per_ref: 3  # Keep nearest neighbors for good initialization

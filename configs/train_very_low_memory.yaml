@@ -1,0 +1,34 @@
+defaults:
+  - train
+  - _self_
+
+# Very low memory configuration for EDGS
+# For GPUs with < 12GB memory or when processing large scenes
+
+# Disable densification completely
+train:
+  no_densify: True
+  gs_epochs: 20000  # Reduced iterations to save time
+  reduce_opacity: True  # Enable opacity reduction
+
+# Aggressive memory reduction settings
+gs:
+  opt:
+    # Very small batch size
+    batch_size: 8  # Minimal batch size
+    
+    # Disable opacity reset completely
+    opacity_reset_interval: 10_000_000
+    
+    # Reduce learning rates slightly for stability with small batches
+    position_lr_init: 0.00012
+    opacity_lr: 0.02
+    scaling_lr: 0.004
+    
+# Reduced initialization for memory efficiency
+init_wC:
+  use: True  # Still use EDGS initialization
+  matches_per_ref: 10000  # Reduced matches
+  num_refs: 90  # Fewer reference images
+  nns_per_ref: 2  # Fewer nearest neighbors
+  scaling_factor: 0.001

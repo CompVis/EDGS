@@ -787,6 +787,11 @@ def init_gaussians_with_corr_fast(gaussians, scene, cfg, device, verbose=False, 
 
     # Dummy first pass to initialize model
     with torch.no_grad():
+        if len(viewpoint_stack) < 2:
+            print(f"⚠️  Warning: Only {len(viewpoint_stack)} viewpoints available. Need at least 2 for correspondence initialization.")
+            print("Skipping correspondence initialization - using SfM points only.")
+            return scene.train_cameras[3:], [], {}
+        
         viewpoint_cam1 = viewpoint_stack[0]
         viewpoint_cam2 = viewpoint_stack[1]
         imA = viewpoint_cam1.original_image.detach().cpu().numpy().transpose(1, 2, 0)
