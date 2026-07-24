@@ -3,4 +3,4 @@
 	url = https://github.com/graphdeco-inria/gaussian-splatting
 [submodule "submodules/RoMa"]
 	path = submodules/RoMa
-	url = git@github.com:Parskatt/RoMa.git
+	url = https://github.com/Parskatt/RoMa.git
