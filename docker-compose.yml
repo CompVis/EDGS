@@ -1,0 +1,16 @@
+services:
+  edgs-app:
+    build: . # Instructs Docker Compose to build using the Dockerfile in the current directory
+    image: edgs-app # This is the name of the image you built
+    ports:
+      - "7862:7862" # Map port 7862 on the host to port 7862 in the container
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all # Use all available GPUs
+              capabilities: [gpu] # Request GPU capabilities
+    volumes:
+      - ./data:/EDGS/data # Example: map a local 'data' folder to '/EDGS/data' in the container
+      - ./output:/EDGS/output # Example: map a local 'output' folder
