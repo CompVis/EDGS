@@ -1,22 +1,22 @@
 defaults:
   - gs: base
-  - _self_ 
+  - _self_
 
 seed: 228
 
 wandb:
-  mode: "online" # "disabled" for no logging
+  mode: "disabled" # "online" or "disabled"
   entity: "3dcorrespondence"
   project: "Adv3DGS"
   group: null
   name: null
   tag: "debug"
-    
+
 train:
-  gs_epochs: 0 # number of 3dgs iterations
-  reduce_opacity: True 
+  gs_epochs: 1000 # number of 3dgs iterations
+  reduce_opacity: True
   no_densify: False # if True, the model will not be densified
-  max_lr: True 
+  max_lr: True
 
 load:
   gs: null #path to 3dgs checkpoint
@@ -28,11 +28,9 @@ verbose: true
 init_wC:
   use: True # use EDGS
   matches_per_ref: 15_000 # number of matches per reference
-  num_refs: 180 # number of reference images
+  num_refs: 18 # number of reference images
   nns_per_ref: 3 # number of nearest neighbors per reference
   scaling_factor: 0.001
   proj_err_tolerance: 0.01
   roma_model: "outdoors" # you can change this to "indoors" or "outdoors"
-  add_SfM_init : False
-
-
+  add_SfM_init: False

@@ -5,6 +5,8 @@ from tqdm import tqdm as tqdm
 from source.networks import Warper3DGS
 import wandb
 import sys
+import os
+from pathlib import Path
 
 sys.path.append('./submodules/gaussian-splatting/')
 import lpips
@@ -50,6 +52,12 @@ class EDGSTrainer:
 
         # Logs in the format {step:{"loss1":loss1_value, "loss2":loss2_value}}
         self.logs_losses = {}
+        
+        # Set torch hub cache directory to model/ folder to avoid re-downloading
+        model_dir = Path("model")
+        model_dir.mkdir(exist_ok=True)
+        torch.hub.set_dir(str(model_dir))
+        
         self.lpips = lpips.LPIPS(net='vgg').to(device)
         self.device = device
         self.timer = Timer()

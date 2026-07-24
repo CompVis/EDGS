@@ -41,7 +41,8 @@ pipe:
 dataset:
   densify_until_iter: 15000
   source_path:  '' #path to dataset
-  model_path:  '' #path to logs
+  output_path:  '' #path to output directory
+  model_path:  '${.output_path}' #alias for output_path (required by submodule)
   images: images
   resolution: -1
   white_background: false

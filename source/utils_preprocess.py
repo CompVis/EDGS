@@ -1,20 +1,16 @@
 # This file contains function for video or image collection preprocessing.
 # For video we do the preprocessing and select k sharpest frames.
-# Afterwards scene is constructed 
-import cv2
-import numpy as np
-from tqdm import tqdm
-import pycolmap
+# Afterwards scene is constructed
 import os
 import time
-import tempfile
-from moviepy import VideoFileClip
-from matplotlib import pyplot as plt
-from PIL import Image
-import cv2
-from tqdm import tqdm
 
-WORKDIR = "../outputs/"
+import cv2
+import numpy as np
+import pycolmap
+from matplotlib import pyplot as plt
+from moviepy import VideoFileClip
+from PIL import Image
+from tqdm import tqdm
 
 
 def get_rotation_moviepy(video_path):
@@ -22,19 +18,24 @@ def get_rotation_moviepy(video_path):
     rotation = 0
 
     try:
-        displaymatrix = clip.reader.infos['inputs'][0]['streams'][2]['metadata'].get('displaymatrix', '')
-        if 'rotation of' in displaymatrix:
-            angle = float(displaymatrix.strip().split('rotation of')[-1].split('degrees')[0])
+        displaymatrix = clip.reader.infos["inputs"][0]["streams"][2]["metadata"].get(
+            "displaymatrix", ""
+        )
+        if "rotation of" in displaymatrix:
+            angle = float(
+                displaymatrix.strip().split("rotation of")[-1].split("degrees")[0]
+            )
             rotation = int(angle) % 360
-            
+
     except Exception as e:
         print(f"No displaymatrix rotation found: {e}")
 
     clip.reader.close()
-    #if clip.audio:
+    # if clip.audio:
     #    clip.audio.reader.close_proc()
 
     return rotation
+
 
 def resize_max_side(frame, max_size):
     h, w = frame.shape[:2]
@@ -42,6 +43,7 @@ def resize_max_side(frame, max_size):
     if scale < 1:
         frame = cv2.resize(frame, (int(w * scale), int(h * scale)))
     return frame
+
 
 def read_video_frames(video_input, k=1, max_size=1024):
     """
@@ -58,7 +60,9 @@ def read_video_frames(video_input, k=1, max_size=1024):
     # Handle list of image files (not single video in a list)
     if isinstance(video_input, list):
         # If it's a single video in a list, treat it as video
-        if len(video_input) == 1 and video_input[0].name.endswith(('.mp4', '.avi', '.mov')):
+        if len(video_input) == 1 and video_input[0].name.endswith(
+            (".mp4", ".avi", ".mov")
+        ):
             video_input = video_input[0]  # unwrap single video file
         else:
             # Treat as list of images
@@ -66,18 +70,19 @@ def read_video_frames(video_input, k=1, max_size=1024):
             for img_file in video_input:
                 img = Image.open(img_file.name).convert("RGB")
                 img.thumbnail((max_size, max_size))
-                frames.append(np.array(img)[...,::-1])
+                frames.append(np.array(img)[..., ::-1])
             return frames
 
     # Handle file-like or path
-    if hasattr(video_input, 'name'):
+    if hasattr(video_input, "name"):
         video_path = video_input.name
     elif isinstance(video_input, (str, os.PathLike)):
         video_path = str(video_input)
     else:
-        raise ValueError("Unsupported video input type. Must be a filepath, file-like object, or list of images.")
+        raise ValueError(
+            "Unsupported video input type. Must be a filepath, file-like object, or list of images."
+        )
 
-    
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise ValueError(f"Error: Could not open video {video_path}.")
@@ -97,12 +102,13 @@ def read_video_frames(video_input, k=1, max_size=1024):
                 scale = max(h, w) / max_size
                 if scale > 1:
                     frame = cv2.resize(frame, (int(w / scale), int(h / scale)))
-                frames.append(frame[...,[2,1,0]])
+                frames.append(frame[..., [2, 1, 0]])
                 pbar.update(1)
             frame_count += 1
 
     cap.release()
     return frames
+
 
 def resize_max_side(frame, max_size):
     """
@@ -110,7 +116,7 @@ def resize_max_side(frame, max_size):
     """
     height, width = frame.shape[:2]
     max_dim = max(height, width)
-    
+
     if max_dim <= max_size:
         return frame  # No need to resize
 
@@ -118,40 +124,46 @@ def resize_max_side(frame, max_size):
     new_width = int(width * scale)
     new_height = int(height * scale)
 
-    resized_frame = cv2.resize(frame, (new_width, new_height), interpolation=cv2.INTER_AREA)
+    resized_frame = cv2.resize(
+        frame, (new_width, new_height), interpolation=cv2.INTER_AREA
+    )
     return resized_frame
 
 
-
 def variance_of_laplacian(image):
-	# compute the Laplacian of the image and then return the focus
-	# measure, which is simply the variance of the Laplacian
-	return cv2.Laplacian(image, cv2.CV_64F).var()
-    
-def process_all_frames(IMG_FOLDER = '/scratch/datasets/hq_data/night2_all_frames',
-                       to_visualize=False,
-                       save_images=True):
+    # compute the Laplacian of the image and then return the focus
+    # measure, which is simply the variance of the Laplacian
+    return cv2.Laplacian(image, cv2.CV_64F).var()
+
+
+def process_all_frames(
+    IMG_FOLDER="/scratch/datasets/hq_data/night2_all_frames",
+    to_visualize=False,
+    save_images=True,
+):
     dict_scores = {}
-    for idx, img_name in tqdm(enumerate(sorted([x for x in os.listdir(IMG_FOLDER) if '.png' in x]))):
-        
-        img = cv2.imread(os.path.join(IMG_FOLDER, img_name))#[250:, 100:]
+    for idx, img_name in tqdm(
+        enumerate(sorted([x for x in os.listdir(IMG_FOLDER) if ".png" in x]))
+    ):
+        img = cv2.imread(os.path.join(IMG_FOLDER, img_name))  # [250:, 100:]
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        fm = variance_of_laplacian(gray) + \
-                variance_of_laplacian(cv2.resize(gray, (0,0), fx=0.75, fy=0.75)) + \
-                variance_of_laplacian(cv2.resize(gray, (0,0), fx=0.5, fy=0.5)) + \
-                variance_of_laplacian(cv2.resize(gray, (0,0), fx=0.25, fy=0.25))
+        fm = (
+            variance_of_laplacian(gray)
+            + variance_of_laplacian(cv2.resize(gray, (0, 0), fx=0.75, fy=0.75))
+            + variance_of_laplacian(cv2.resize(gray, (0, 0), fx=0.5, fy=0.5))
+            + variance_of_laplacian(cv2.resize(gray, (0, 0), fx=0.25, fy=0.25))
+        )
         if to_visualize:
             plt.figure()
             plt.title(f"Laplacian score: {fm:.2f}")
-            plt.imshow(img[..., [2,1,0]])
+            plt.imshow(img[..., [2, 1, 0]])
             plt.show()
-        dict_scores[idx] = {"idx" : idx, 
-                            "img_name" : img_name,
-                            "score" : fm}
+        dict_scores[idx] = {"idx": idx, "img_name": img_name, "score": fm}
         if save_images:
             dict_scores[idx]["img"] = img
-        
+
     return dict_scores
+
 
 def select_optimal_frames(scores, k):
     """
@@ -165,12 +177,14 @@ def select_optimal_frames(scores, k):
         list of int: Indices of selected frames.
     """
     n = len(scores)
-    selected = [0, n-1]
+    selected = [0, n - 1]
     i = 0  # Start at the first frame
 
     while i < n:
         # Find the best frame to select within the next k frames
-        best_idx = max(range(i, min(i + k + 1, n)), key=lambda x: scores[x], default=None)
+        best_idx = max(
+            range(i, min(i + k + 1, n)), key=lambda x: scores[x], default=None
+        )
 
         if best_idx is None:
             break  # No more frames left
@@ -186,6 +200,7 @@ def variance_of_laplacian(image):
     Compute the variance of Laplacian as a focus measure.
     """
     return cv2.Laplacian(image, cv2.CV_64F).var()
+
 
 def preprocess_frames(frames, verbose=False):
     """
@@ -204,18 +219,19 @@ def preprocess_frames(frames, verbose=False):
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
         fm = (
-            variance_of_laplacian(gray) +
-            variance_of_laplacian(cv2.resize(gray, (0, 0), fx=0.75, fy=0.75)) +
-            variance_of_laplacian(cv2.resize(gray, (0, 0), fx=0.5, fy=0.5)) +
-            variance_of_laplacian(cv2.resize(gray, (0, 0), fx=0.25, fy=0.25))
+            variance_of_laplacian(gray)
+            + variance_of_laplacian(cv2.resize(gray, (0, 0), fx=0.75, fy=0.75))
+            + variance_of_laplacian(cv2.resize(gray, (0, 0), fx=0.5, fy=0.5))
+            + variance_of_laplacian(cv2.resize(gray, (0, 0), fx=0.25, fy=0.25))
         )
-        
+
         if verbose:
             print(f"Frame {idx}: Sharpness Score = {fm:.2f}")
 
         scores.append(fm)
 
     return scores
+
 
 def select_optimal_frames(scores, k):
     """
@@ -226,7 +242,7 @@ def select_optimal_frames(scores, k):
         k (int): Number of frames to select.
 
     Returns:
-        list of int: Indices of selected frames.  
+        list of int: Indices of selected frames.
     """
     n = len(scores)
     selected_indices = []
@@ -236,14 +252,15 @@ def select_optimal_frames(scores, k):
         start = i * segment_size
         end = (i + 1) * segment_size if i < k - 1 else n  # Last chunk may be larger
         segment_scores = scores[start:end]
-        
+
         if len(segment_scores) == 0:
             continue  # Safety check if some segment is empty
-        
+
         best_in_segment = start + np.argmax(segment_scores)
         selected_indices.append(best_in_segment)
 
     return sorted(selected_indices)
+
 
 def save_frames_to_scene_dir(frames, scene_dir):
     """
@@ -257,7 +274,9 @@ def save_frames_to_scene_dir(frames, scene_dir):
     os.makedirs(images_dir, exist_ok=True)
 
     for idx, frame in enumerate(frames):
-        filename = os.path.join(images_dir, f"{idx:08d}.png")  # 00000000.png, 00000001.png, etc.
+        filename = os.path.join(
+            images_dir, f"{idx:08d}.png"
+        )  # 00000000.png, 00000001.png, etc.
         cv2.imwrite(filename, frame)
 
     print(f"Saved {len(frames)} frames to {images_dir}")
@@ -269,7 +288,7 @@ def run_colmap_on_scene(scene_dir):
 
     Args:
         scene_dir (str): Path to scene directory containing 'images' folder.
-    
+
     TODO: if the function hasn't managed to match all the frames either increase image size,
     increase number of features or just remove those frames from the folder scene_dir/images
     """
@@ -280,7 +299,7 @@ def run_colmap_on_scene(scene_dir):
     database_path = os.path.join(scene_dir, "database.db")
     sparse_path = os.path.join(scene_dir, "sparse")
     image_dir = os.path.join(scene_dir, "images")
-    
+
     # Make sure output directories exist
     os.makedirs(sparse_path, exist_ok=True)
 
@@ -291,7 +310,7 @@ def run_colmap_on_scene(scene_dir):
         sift_options={
             "max_num_features": 512 * 2,
             "max_image_size": 512 * 1,
-        }
+        },
     )
     print(f"Finished feature extraction in {(time.time() - start_time):.2f}s.")
 
@@ -325,10 +344,160 @@ def run_colmap_on_scene(scene_dir):
     reconstruction = pycolmap.Reconstruction(recon_path)
 
     for cam in reconstruction.cameras.values():
-        cam.model = 'SIMPLE_PINHOLE'
+        cam.model = "SIMPLE_PINHOLE"
         cam.params = cam.params[:3]  # Keep only [f, cx, cy]
 
     reconstruction.write(recon_path)
 
     print(f"Total pipeline time: {(time.time() - start_time):.2f}s.")
 
+
+def process_input_for_colmap(input_path, num_ref_views, output_dir, max_size=1024):
+    """
+    Helper function to read frames from video or image folder, select optimal ones,
+    and save them to the output_dir/images.
+    This is based on process_input from gradio_demo.py.
+    Renamed to avoid potential confusion if 'process_input' is too generic.
+    """
+    frames_to_save_in_scene_dir = []
+    if isinstance(input_path, (str, os.PathLike)):  # If input_path is a path string
+        if os.path.isdir(input_path):  # If it's a directory of images
+            print(f"Processing image directory: {input_path}")
+            raw_frames = []
+            image_files = sorted(
+                [
+                    f
+                    for f in os.listdir(input_path)
+                    if f.lower().endswith(("jpg", "jpeg", "png"))
+                ]
+            )
+            for img_file in image_files:
+                img = Image.open(os.path.join(input_path, img_file)).convert("RGB")
+                # Resize if necessary, similar to video frames
+                width, height = img.size
+                if max(width, height) > max_size:
+                    scale = max_size / max(width, height)
+                    new_width = int(width * scale)
+                    new_height = int(height * scale)
+                    img = img.resize((new_width, new_height), Image.LANCZOS)
+                raw_frames.append(np.array(img))
+        else:  # If it's a single video file path
+            print(f"Processing video file: {input_path}")
+            raw_frames = read_video_frames(video_input=input_path, max_size=max_size)
+    elif hasattr(
+        input_path, "name"
+    ):  # If input_path is a file-like object (e.g., from Gradio upload)
+        print(f"Processing uploaded video file: {input_path.name}")
+        raw_frames = read_video_frames(video_input=input_path.name, max_size=max_size)
+    else:
+        raise ValueError(f"Unsupported input_path type: {type(input_path)}")
+
+    if not raw_frames:
+        print("No frames extracted or read.")
+        return []
+
+    frames_scores = preprocess_frames(
+        raw_frames
+    )  # Assuming preprocess_frames takes list of numpy arrays
+    selected_frames_indices = select_optimal_frames(
+        scores=frames_scores, k=min(num_ref_views, len(raw_frames))
+    )
+    frames_to_save_in_scene_dir = [
+        raw_frames[frame_idx] for frame_idx in selected_frames_indices
+    ]
+
+    # The 'output_dir' here is the scene_dir where 'images' subfolder will be created
+    save_frames_to_scene_dir(frames=frames_to_save_in_scene_dir, scene_dir=output_dir)
+    return frames_to_save_in_scene_dir  # Returns the list of selected frame data (numpy arrays)
+
+
+def orchestrate_video_to_colmap_scene(
+    input_path,
+    num_ref_views,
+    max_size=1024,
+    base_work_dir="../outputs/processed_scenes",
+):
+    """
+    Orchestrates the full video/image folder preprocessing pipeline:
+    1. Creates a temporary scene directory.
+    2. Reads frames, selects optimal ones, saves them.
+    3. Runs COLMAP on the scene.
+    Args:
+        input_path (str or file-like): Path string, a Gradio file object, or a list (e.g., from gr.Examples).
+        num_ref_views (int): Number of reference views to select.
+        max_size (int): Maximum size for width or height after resizing.
+        base_work_dir (str): Base directory for temporary scene directories.
+    Returns:
+        the list of selected frame image data and the path to the COLMAP processed scene directory.
+        This is based on preprocess_input from gradio_demo.py.
+    """
+    actual_input_path_str = None
+    input_name_part = "temp_scene"  # Default
+
+    if hasattr(input_path, "name") and isinstance(
+        input_path.name, str
+    ):  # Gradio file object
+        actual_input_path_str = input_path.name
+        input_name_part = os.path.splitext(os.path.basename(input_path.name))[0]
+    elif isinstance(input_path, (str, os.PathLike)):  # Direct path string
+        actual_input_path_str = str(input_path)
+        input_name_part = os.path.splitext(os.path.basename(input_path))[0]
+    elif (
+        isinstance(input_path, list) and input_path
+    ):  # Handle list: take the first item.
+        # gr.Examples often wraps the path in another list, e.g., [['path/to/example.mp4']]
+        # So, we might need to unwrap it.
+        first_item_candidate = input_path[0]
+        if (
+            isinstance(first_item_candidate, list) and first_item_candidate
+        ):  # Check for nested list
+            first_item = first_item_candidate[0]
+        else:
+            first_item = first_item_candidate
+
+        if hasattr(first_item, "name") and isinstance(
+            first_item.name, str
+        ):  # Gradio file object in list
+            actual_input_path_str = first_item.name
+            input_name_part = os.path.splitext(os.path.basename(first_item.name))[0]
+        elif isinstance(first_item, (str, os.PathLike)):  # Path string in list
+            actual_input_path_str = str(first_item)
+            input_name_part = os.path.splitext(os.path.basename(first_item))[0]
+        else:
+            print(f"Warning: Unsupported item type in input list: {type(first_item)}")
+            return [], None
+    else:
+        print(f"Error: Unsupported input_path type: {type(input_path)}")
+        return [], None
+
+    if not actual_input_path_str:
+        print("Error: Could not determine a valid input file path.")
+        return [], None
+
+    print(f"Orchestrating COLMAP scene from: {actual_input_path_str}")
+
+    # Using a structured output directory instead of pure tempfile.mkdtemp for easier inspection
+    # scene_dir_parent = tempfile.mkdtemp() # Original approach
+
+    # Ensure base_work_dir exists
+    os.makedirs(base_work_dir, exist_ok=True)
+    # Create a unique subdirectory within base_work_dir
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    scene_dir = os.path.join(base_work_dir, f"{input_name_part}_{timestamp}")
+
+    os.makedirs(scene_dir, exist_ok=True)
+    print(f"Created scene directory for COLMAP: {scene_dir}")
+
+    selected_frames_data = process_input_for_colmap(
+        actual_input_path_str, num_ref_views, scene_dir, max_size
+    )
+    if not selected_frames_data:
+        print(f"Frame processing failed for {input_path}. Aborting COLMAP.")
+        # Optionally clean up scene_dir if it's truly temporary and processing failed
+        # shutil.rmtree(scene_dir)
+        return [], None
+
+    run_colmap_on_scene(scene_dir)  # This function should create scene_dir/sparse/0
+
+    print(f"COLMAP processing complete for {scene_dir}")
+    return selected_frames_data, scene_dir

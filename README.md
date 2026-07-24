@@ -71,44 +71,13 @@ Alternatively, check our [Colab notebook](https://colab.research.google.com/gith
 <a id="sec-install"></a>
 ## 🛠️ Installation
 
-You can either run `install.sh` or manually install using the following:
+You can install it just:
 
 ```bash
-git clone git@github.com:CompVis/EDGS.git --recursive
-cd EDGS
-git submodule update --init --recursive 
-
-conda create -y -n edgs python=3.10 pip
-conda activate edgs
-
-# Set up path to your CUDA. In our experience similar versions like 12.2 also work well 
-export CUDA_HOME=/usr/local/cuda-12.1
-export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
-export PATH=$CUDA_HOME/bin:$PATH
-
-conda install pytorch torchvision torchaudio pytorch-cuda=12.1 -c pytorch -c nvidia -y
-conda install nvidia/label/cuda-12.1.0::cuda-toolkit -y
-
-pip install -e submodules/gaussian-splatting/submodules/diff-gaussian-rasterization
-pip install -e submodules/gaussian-splatting/submodules/simple-knn
-
-# For COLMAP and pycolmap
-# Optionally install original colmap but probably pycolmap suffices
-# conda install conda-forge/label/colmap_dev::colmap
-pip install pycolmap
-
-
-pip install wandb hydra-core tqdm torchmetrics lpips matplotlib rich plyfile imageio imageio-ffmpeg
-conda install numpy=1.26.4 -y -c conda-forge --override-channels
-
-pip install -e submodules/RoMa
-conda install anaconda::jupyter --yes
-
-# Stuff necessary for gradio and visualizations
-pip install gradio 
-pip install plotly scikit-learn moviepy==2.1.1 ffmpeg
-pip install open3d 
+docker compose up -d
 ```
+
+or you can install with running `script/install.sh`.
 
 <a id="sec-data"></a>
 ## 📦 Data
@@ -120,6 +89,36 @@ We evaluated on the following datasets:
 
 ### Using Your Own Dataset
 
+#### Option A
+Use gradle demo.
+After running `docker compose up -d`,
+```
+docker compose exec edgs-app bash
+python script/gradio_demo.py --port 7862
+```
+
+#### Option B
+From command line.
+```
+docker compose exec edgs-app bash
+python script/fit_model_to_scene_full.py --video_path <your mp4 video> [--processed_scenes_dir <output directory>]
+```
+
+#### Option C
+Using Jupyter lab.
+```
+docker compose exec edgs-app bash
+```
+And in the terminal in the docker container,
+```
+jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --notebook-dir=notebooks
+```
+After JupyterLab starts, it will print URLs to the terminal. Look for a URL containing a token, like:
+    `http://127.0.0.1:8888/lab?token=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+Open `http://localhost:8888` (or `http://127.0.0.1:8888`) in your host browser.
+When prompted for a "Password or token", paste the `xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` part from the URL in step 4 into the field and log in. Alternatively, you can paste the full URL from step 4 directly into your browser.
+
+#### Option D
 You can use the same data format as the [3DGS project](https://github.com/graphdeco-inria/gaussian-splatting?tab=readme-ov-file#processing-your-own-scenes). Please follow their guide to prepare your scene.
 
 Expected folder structure:
@@ -136,6 +135,11 @@ scene_folder
         |---points3D.bin
 ```
 
+```
+docker compose exec edgs-app bash
+```
+Then run training command as described below section.
+
 Nerf synthetic format is also acceptable. 
 
 You can also use functions provided in our code to convert a collection of images or a sinlge video into a desired format. However, this may requre tweaking and processing time can be large for large collection of images with little overlap.
@@ -146,11 +150,11 @@ You can also use functions provided in our code to convert a collection of image
 
 To optimize on a single scene in COLMAP format use this code.  
 ```bash
-python train.py \
+python script/train.py \
   train.gs_epochs=30000 \
   train.no_densify=True \
   gs.dataset.source_path=<scene folder> \
-  gs.dataset.model_path=<output folder> \
+  gs.dataset.output_path=<output folder> \
   init_wC.matches_per_ref=20000 \
   init_wC.nns_per_ref=3 \
   init_wC.num_refs=180
@@ -164,7 +168,7 @@ python train.py \
   Disables densification. True by default.
   * `gs.dataset.source_path`
   Path to your input dataset directory. This should follow the same format as the original 3DGS dataset structure.
-  * `gs.dataset.model_path`
+  * `gs.dataset.output_path`
   Output directory where the trained model, logs, and renderings will be saved.
   * `init_wC.matches_per_ref`
   Number of 2D feature correspondences to extract per reference view for initialization. More matches leads to more gaussians.

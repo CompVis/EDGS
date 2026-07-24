@@ -1,0 +1,26 @@
+# Ignore the following files and directories when building the Docker image
+*.pyc
+__pycache__/
+*.ipynb_checkpoints
+*.log
+*.csv
+*.tsv
+*.h5
+*.pth
+*.pt
+*.zip
+*.tar.gz
+*.egg-info/
+dist/
+build/
+.env
+venv/
+.env.local
+*.DS_Store
+*.egg
+*.whl
+*.pkl
+*.json
+*.yaml
+*.yml
+submodules/
